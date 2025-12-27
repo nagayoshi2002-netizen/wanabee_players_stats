@@ -46,6 +46,7 @@ const adminSection = document.getElementById("admin-section");
 const matchTitleEl = document.getElementById("match-title");
 const createMatchBtn = document.getElementById("create-match-btn");
 const adminInfoEl = document.getElementById("admin-info");
+console.log("adminInfoEl:", adminInfoEl);
 
 function randomJoinCode(len = 8) {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -104,6 +105,15 @@ createMatchBtn?.addEventListener("click", async () => {
     createdAt: serverTimestamp(),
   });
 
+  const msg = `作成完了：matchId=${matchRef.id} / joinCode=${joinCode}`;
+
+if (adminInfoEl) {
+  adminInfoEl.textContent = msg;
+} else {
+  alert(msg);            // 表示先が無くても必ず出す
+  console.log(msg);      // ついでにConsoleにも出す
+}
+
   adminInfoEl.textContent = `作成完了：matchId=${matchRef.id} / joinCode=${joinCode}`;
   alert(`試合作成OK\njoinCode: ${joinCode}`);
 });
@@ -133,5 +143,6 @@ onAuthStateChanged(auth, async (user) => {
   teamSection.style.display = "none";
   scoreSection.style.display = "none";
 });
+
 
 
