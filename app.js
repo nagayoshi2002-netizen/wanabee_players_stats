@@ -254,6 +254,60 @@ if (adminInfoEl) {
   alert(`試合作成OK\njoinCode: ${joinCode}`);
 });
 
+async function fetchInvitesForMyEmail(email) {
+  const q = query(collection(db, "invites"), where("email", "==", email));
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+async function ensureMembershipFromInvite(invite, user) {
+  // memberships を作る（後で players/events の権限管理が楽になる）
+  const memRef = doc(db, "matches", invite.matchId, "memberships", user.uid);
+  const memSnap = await getDoc(memRef);
+
+  if (!memSnap.exists()) {
+    await setDoc(memRef, {
+      role: "team",
+      teamName: invite.teamName || "",
+      inviteId: invite.id,
+      createdAt: serverTimestamp(),
+    });
+  }
+
+  // invite を処理済みにする（任意：重複管理に便利）
+  const invRef = doc(db, "invites", invite.id);
+  const invSnap = await getDoc(invRef);
+  if (invSnap.exists() && !invSnap.data().usedAt) {
+    await updateDoc(invRef, { usedAt: serverTimestamp() });
+  }
+}
+
+async function renderMatchesFromInvites(user) {
+  matchesList.innerHTML = "";
+
+  const invites = await fetchInvitesForMyEmail(user.email);
+  if (invites.length === 0) {
+    matchesList.innerHTML = "<li>招待されている試合がありません。</li>";
+    return;
+  }
+
+  // 招待→参加登録（membership化）
+  for (const inv of invites) {
+    await ensureMembershipFromInvite(inv, user);
+  }
+
+  // 試合情報を表示
+  for (const inv of invites) {
+    const matchSnap = await getDoc(doc(db, "matches", inv.matchId));
+    if (!matchSnap.exists()) continue;
+
+    const m = matchSnap.data();
+    const li = document.createElement("li");
+    li.textContent = `${m.title || "Untitled Match"}（joinCode: ${m.joinCode || "-"}）`;
+    matchesList.appendChild(li);
+  }
+}
+
 onAuthStateChanged(auth, async (user) => {
   if (!user) {
     statusEl.textContent = "";
@@ -264,6 +318,16 @@ onAuthStateChanged(auth, async (user) => {
     joinSection.style.display = "block";
     return;
   }
+  // 試合一覧を表示
+matchesSection.style.display = "block";
+
+try {
+  await renderMatchesFromInvites(user);
+} catch (e) {
+  alert(`招待試合の表示に失敗: ${e.code}\n${e.message}`);
+  console.error(e);
+}
+
 
   // ログイン中表示（メールに）
   statusEl.textContent = `ログイン中: ${user.email}`;
@@ -280,6 +344,7 @@ onAuthStateChanged(auth, async (user) => {
   teamSection.style.display = "none";
   scoreSection.style.display = "none";
 });
+
 
 
 
