@@ -23,13 +23,13 @@ const firebaseConfig = {
   projectId: "wanabee-players-stats",
   storageBucket: "wanabee-players-stats.firebasestorage.app",
   messagingSenderId: "392879235657",
-  appId: "1:392879235657:web:a0b0b0c87caf1643865598",
-  measurementId: "G-N9Y2L93EZT"
+  appId: "1:392879235657:web:a0b0b0c87caf1643865598"
 };
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
+const auth = getAuth(app);
+const db = getFirestore(app);
 
 // ---------- DOM ----------
 const emailEl = document.getElementById("email");
@@ -198,3 +198,4 @@ onAuthStateChanged(auth, (user) => {
 });
 
 renderTimer();
+
