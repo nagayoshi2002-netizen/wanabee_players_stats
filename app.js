@@ -70,6 +70,26 @@ const joinInfoEl = document.getElementById("join-info");
 // DOM（試合一覧）
 const matchesList = document.getElementById("matches-list");
 
+
+let currentMatchId = null;
+
+function enterMatch(matchId) {
+  currentMatchId = matchId;
+  sessionStorage.setItem("currentMatchId", matchId);
+
+  // 一覧・参加導線は隠す（好みで調整OK）
+  matchesSection.style.display = "none";
+  joinSection.style.display = "none";
+
+  // 入力画面を開く
+  teamSection.style.display = "block";
+  scoreSection.style.display = "block";
+
+  // ここで「この試合の players / events を読み込む」処理を呼ぶ（次ステップ）
+  // loadPlayersForMatch(matchId);
+  // loadEventsForMatch(matchId);
+}
+
 // ======================
 // utils
 // ======================
@@ -134,11 +154,14 @@ async function renderMatchesFromInvites(user) {
   for (const inv of invites) {
     const matchSnap = await getDoc(doc(db, "matches", inv.matchId));
     if (!matchSnap.exists()) continue;
-
+  
     const m = matchSnap.data();
     const li = document.createElement("li");
-    // joinCode は表示不要なら消してOK
     li.textContent = `${m.title || "Untitled Match"}（matchId: ${inv.matchId} / joinCode: ${m.joinCode || "-"}）`;
+    li.style.cursor = "pointer";
+    li.addEventListener("click", () => {
+      enterMatch(inv.matchId);
+    });
     matchesList.appendChild(li);
   }
 }
@@ -313,3 +336,4 @@ onAuthStateChanged(auth, async (user) => {
   teamSection.style.display = "none";
   scoreSection.style.display = "none";
 });
+
