@@ -323,12 +323,49 @@ onAuthStateChanged(auth, async (user) => {
   // チーム：招待試合を表示（主導線）
   matchesSection.style.display = "block";
 
+async function renderMatchesFromInvites(user) {
+  matchesList.innerHTML = "";
+
+  const emailKey = (user.email || "").trim().toLowerCase();
+
+  let invites = [];
   try {
-    await renderMatchesFromInvites(user);
+    invites = await fetchInvitesForEmail(emailKey);
+    console.log("invites:", invites);
   } catch (e) {
-    alert(`招待試合の表示に失敗: ${e.code}\n${e.message}`);
+    alert(`invites 読み込み権限エラー\n${e.code}\n${e.message}`);
     console.error(e);
+    return;
   }
+
+  if (invites.length === 0) {
+    matchesList.innerHTML = "<li>招待されている試合がありません。</li>";
+    return;
+  }
+
+  // membership 作成
+  try {
+    for (const inv of invites) {
+      await ensureMembershipFromInvite(inv, user);
+    }
+  } catch (e) {
+    alert(`membership 作成権限エラー\n${e.code}\n${e.message}`);
+    console.error(e);
+    return;
+  }
+
+  // matches 読み込み
+  try {
+    for (const inv of invites) {
+      const matchSnap = await getDoc(doc(db, "matches", inv.matchId));
+      console.log("match read ok:", inv.matchId, matchSnap.exists());
+    }
+  } catch (e) {
+    alert(`matches 読み込み権限エラー\n${e.code}\n${e.message}`);
+    console.error(e);
+    return;
+  }
+}
 
   // joinCode は予備導線として表示（不要なら "none" にしてOK）
   joinSection.style.display = "block";
@@ -337,5 +374,6 @@ onAuthStateChanged(auth, async (user) => {
   teamSection.style.display = "none";
   scoreSection.style.display = "none";
 });
+
 
 
