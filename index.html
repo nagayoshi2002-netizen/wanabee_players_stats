@@ -30,6 +30,15 @@
   <p class="hint">作成後に表示される joinCode を対戦チームに共有します。</p>
   <p id="admin-info" class="hint"></p>
 </section>
+  <section id="join-section" style="display:none;">
+  <h2>チーム：試合に参加</h2>
+  <div class="row">
+    <input type="text" id="join-code" placeholder="joinCode（例：ABCD1234）">
+    <input type="text" id="team-name" placeholder="チーム名（例：Wanabee A）">
+    <button id="join-btn">参加</button>
+  </div>
+  <p id="join-info" class="hint"></p>
+</section>
 
 
   <!-- 選手登録 -->
@@ -68,3 +77,4 @@
   <script type="module" src="app.js"></script>
 </body>
 </html>
+
