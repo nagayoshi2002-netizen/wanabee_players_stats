@@ -1,32 +1,60 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>スコア入力</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <h1>スコア入力</h1>
 
-  <!-- ログイン画面 -->
+  <!-- ログイン -->
   <section id="login-section">
-    <input type="email" id="email" placeholder="メールアドレス">
-    <input type="password" id="password" placeholder="パスワード">
-    <button id="login-btn">ログイン</button>
+    <h2>チームログイン</h2>
+    <input type="email" id="email" placeholder="メールアドレス" autocomplete="email" />
+    <input type="password" id="password" placeholder="パスワード" autocomplete="current-password" />
+    <div class="row">
+      <button id="login-btn">ログイン</button>
+      <button id="signup-btn">新規登録</button>
+      <button id="logout-btn" class="ghost" style="display:none;">ログアウト</button>
+    </div>
+    <p id="login-status" class="hint"></p>
   </section>
 
-  <!-- スコア入力画面 -->
+  <!-- 選手登録 -->
+  <section id="team-section" style="display:none;">
+    <h2>選手登録（自チーム）</h2>
+    <div class="row">
+      <input type="text" id="player-name" placeholder="名前（例：山田 太郎）" />
+      <input type="text" id="player-number" placeholder="背番号（例：12）" />
+      <button id="add-player-btn">追加</button>
+    </div>
+    <p class="hint">登録した選手は下のプルダウンに反映されます。</p>
+  </section>
+
+  <!-- スコア入力 -->
   <section id="score-section" style="display:none;">
-    <select id="player-select">
-      <option>選手を選択</option>
-    </select>
-    <button id="start-timer">タイマー開始</button>
-    <p id="timer">00:00</p>
-    <button id="record-score">スコア記録</button>
+    <h2>スコア入力</h2>
+
+    <div class="row">
+      <select id="player-select">
+        <option value="">選手を選択</option>
+      </select>
+      <button id="start-timer-btn">タイマー開始</button>
+      <button id="reset-timer-btn" class="ghost">リセット</button>
+    </div>
+
+    <p id="timer" class="timer">00:00</p>
+
+    <div class="row">
+      <button id="record-score-btn">得点を記録</button>
+    </div>
+
+    <h3>記録ログ</h3>
     <ul id="score-list"></ul>
   </section>
 
-  <!-- これ1行だけ残す -->
   <script type="module" src="app.js"></script>
 </body>
 </html>
