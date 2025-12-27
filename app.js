@@ -139,7 +139,8 @@ async function ensureMembershipFromInvite(invite, user) {
 async function renderMatchesFromInvites(user) {
   matchesList.innerHTML = "";
 
-  const invites = await fetchInvitesForEmail(user.email);
+  const emailKey = (user.email || "").trim().toLowerCase();
+  const invites = await fetchInvitesForEmail(emailKey);
   if (invites.length === 0) {
     matchesList.innerHTML = "<li>招待されている試合がありません。</li>";
     return;
@@ -336,4 +337,5 @@ onAuthStateChanged(auth, async (user) => {
   teamSection.style.display = "none";
   scoreSection.style.display = "none";
 });
+
 
