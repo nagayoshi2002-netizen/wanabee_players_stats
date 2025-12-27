@@ -13,7 +13,10 @@ import {
   getDoc,
   addDoc,
   collection,
-  serverTimestamp
+  serverTimestamp,
+  query,
+  where,
+  getDocs
 } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -47,6 +50,13 @@ const matchTitleEl = document.getElementById("match-title");
 const createMatchBtn = document.getElementById("create-match-btn");
 const adminInfoEl = document.getElementById("admin-info");
 console.log("adminInfoEl:", adminInfoEl);
+
+// DOM（チーム参加）
+const joinSection = document.getElementById("join-section");
+const joinCodeEl = document.getElementById("join-code");
+const teamNameEl = document.getElementById("team-name");
+const joinBtn = document.getElementById("join-btn");
+const joinInfoEl = document.getElementById("join-info");
 
 function randomJoinCode(len = 8) {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -114,6 +124,44 @@ createMatchBtn?.addEventListener("click", async () => {
   const title = matchTitleEl.value.trim() || "Untitled Match";
   const joinCode = randomJoinCode(8);
 
+let currentMatchId = null;
+
+async function findMatchIdByJoinCode(code) {
+  const q = query(collection(db, "matches"), where("joinCode", "==", code));
+  const snap = await getDocs(q);
+  if (snap.empty) return null;
+  return snap.docs[0].id;
+}
+
+joinBtn?.addEventListener("click", async () => {
+  const user = auth.currentUser;
+  if (!user) return alert("ログインしてください。");
+
+  const code = joinCodeEl.value.trim().toUpperCase();
+  const teamName = teamNameEl.value.trim();
+  if (!code || !teamName) return alert("joinCode とチーム名を入力してください。");
+
+  try {
+    const matchId = await findMatchIdByJoinCode(code);
+    if (!matchId) return alert("joinCode が見つかりません。");
+
+    // memberships に参加登録（role=team）
+    await setDoc(doc(db, "matches", matchId, "memberships", user.uid), {
+      role: "team",
+      teamName,
+      createdAt: serverTimestamp(),
+    });
+
+    currentMatchId = matchId;
+    joinInfoEl.textContent = `参加完了：matchId=${matchId}`;
+    alert("試合に参加しました。");
+  } catch (e) {
+    alert(`参加失敗: ${e.code}\n${e.message}`);
+    console.error(e);
+  }
+});
+
+  
   // matches を作成
   const matchRef = await addDoc(collection(db, "matches"), {
     title,
@@ -149,6 +197,7 @@ onAuthStateChanged(auth, async (user) => {
     adminSection.style.display = "none";
     teamSection.style.display = "none";
     scoreSection.style.display = "none";
+    joinSection.style.display = "block";
     return;
   }
 
@@ -167,6 +216,7 @@ onAuthStateChanged(auth, async (user) => {
   teamSection.style.display = "none";
   scoreSection.style.display = "none";
 });
+
 
 
 
