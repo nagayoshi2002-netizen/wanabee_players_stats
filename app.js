@@ -71,7 +71,6 @@ async function fetchInvitesForEmail(email) {
 }
 
 async function ensureMembershipFromInvite(invite, user) {
-  // 招待が "usedAt" 済みでも membership が無い可能性に備えて、常に membership を確認して作る
   const memRef = doc(db, "matches", invite.matchId, "memberships", user.uid);
   const memSnap = await getDoc(memRef);
 
@@ -79,12 +78,12 @@ async function ensureMembershipFromInvite(invite, user) {
     await setDoc(memRef, {
       role: "team",
       teamName: invite.teamName || "",
-      inviteId: invite.id,               // ルールの存在チェック用
+      inviteId: invite.id,
       createdAt: serverTimestamp(),
     });
   }
 
-  // usedAt を入れて「処理済み」管理（任意だが推奨）
+  // optional: mark used
   const invRef = doc(db, "invites", invite.id);
   const invSnap = await getDoc(invRef);
   if (invSnap.exists() && !invSnap.data().usedAt) {
@@ -92,24 +91,19 @@ async function ensureMembershipFromInvite(invite, user) {
   }
 }
 
-async function renderMyMatches(user) {
+async function renderMatchesFromInvites(user) {
   matchesList.innerHTML = "";
 
-  // 自分の参加試合を探す簡易版：招待から matchId を列挙し、matches を読む
-  // （本番では memberships を起点に一覧化してもOK）
   const invites = await fetchInvitesForEmail(user.email);
-
   if (invites.length === 0) {
-    matchesList.innerHTML = "<li>現在、招待されている試合はありません。</li>";
+    matchesList.innerHTML = "<li>招待されている試合がありません。</li>";
     return;
   }
 
-  // 招待ごとに membership を確定
   for (const inv of invites) {
     await ensureMembershipFromInvite(inv, user);
   }
 
-  // 試合情報を表示
   for (const inv of invites) {
     const matchSnap = await getDoc(doc(db, "matches", inv.matchId));
     if (!matchSnap.exists()) continue;
@@ -120,7 +114,6 @@ async function renderMyMatches(user) {
     matchesList.appendChild(li);
   }
 }
-
 
 function randomJoinCode(len = 8) {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -188,45 +181,6 @@ createMatchBtn?.addEventListener("click", async () => {
   const title = matchTitleEl.value.trim() || "Untitled Match";
   const joinCode = randomJoinCode(8);
 
-let currentMatchId = null;
-
-async function findMatchIdByJoinCode(code) {
-  const q = query(collection(db, "matches"), where("joinCode", "==", code));
-  const snap = await getDocs(q);
-  if (snap.empty) return null;
-  return snap.docs[0].id;
-}
-
-joinBtn?.addEventListener("click", async () => {
-  const user = auth.currentUser;
-  if (!user) return alert("ログインしてください。");
-
-  const code = joinCodeEl.value.trim().toUpperCase();
-  const teamName = teamNameEl.value.trim();
-  if (!code || !teamName) return alert("joinCode とチーム名を入力してください。");
-
-  try {
-    const matchId = await findMatchIdByJoinCode(code);
-    if (!matchId) return alert("joinCode が見つかりません。");
-
-    // memberships に参加登録（role=team）
-    await setDoc(doc(db, "matches", matchId, "memberships", user.uid), {
-      role: "team",
-      teamName,
-      createdAt: serverTimestamp(),
-    });
-
-    currentMatchId = matchId;
-    joinInfoEl.textContent = `参加完了：matchId=${matchId}`;
-    alert("試合に参加しました。");
-  } catch (e) {
-    alert(`参加失敗: ${e.code}\n${e.message}`);
-    console.error(e);
-  }
-});
-
-  
-  // matches を作成
   const matchRef = await addDoc(collection(db, "matches"), {
     title,
     status: "scheduled",
@@ -235,22 +189,13 @@ joinBtn?.addEventListener("click", async () => {
     createdAt: serverTimestamp(),
   });
 
-  // 作成者をこの試合の admin として membership 作成
   await setDoc(doc(db, "matches", matchRef.id, "memberships", user.uid), {
     role: "admin",
     createdAt: serverTimestamp(),
   });
 
   const msg = `作成完了：matchId=${matchRef.id} / joinCode=${joinCode}`;
-
-if (adminInfoEl) {
-  adminInfoEl.textContent = msg;
-} else {
-  alert(msg);            // 表示先が無くても必ず出す
-  console.log(msg);      // ついでにConsoleにも出す
-}
-
-  adminInfoEl.textContent = `作成完了：matchId=${matchRef.id} / joinCode=${joinCode}`;
+  if (adminInfoEl) adminInfoEl.textContent = msg;
   alert(`試合作成OK\njoinCode: ${joinCode}`);
 });
 
@@ -258,28 +203,6 @@ async function fetchInvitesForMyEmail(email) {
   const q = query(collection(db, "invites"), where("email", "==", email));
   const snap = await getDocs(q);
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
-}
-
-async function ensureMembershipFromInvite(invite, user) {
-  // memberships を作る（後で players/events の権限管理が楽になる）
-  const memRef = doc(db, "matches", invite.matchId, "memberships", user.uid);
-  const memSnap = await getDoc(memRef);
-
-  if (!memSnap.exists()) {
-    await setDoc(memRef, {
-      role: "team",
-      teamName: invite.teamName || "",
-      inviteId: invite.id,
-      createdAt: serverTimestamp(),
-    });
-  }
-
-  // invite を処理済みにする（任意：重複管理に便利）
-  const invRef = doc(db, "invites", invite.id);
-  const invSnap = await getDoc(invRef);
-  if (invSnap.exists() && !invSnap.data().usedAt) {
-    await updateDoc(invRef, { usedAt: serverTimestamp() });
-  }
 }
 
 async function renderMatchesFromInvites(user) {
@@ -312,42 +235,34 @@ onAuthStateChanged(auth, async (user) => {
   if (!user) {
     statusEl.textContent = "";
     logoutBtn.style.display = "none";
+    signupBtn.style.display = "inline-block";
     adminSection.style.display = "none";
+    matchesSection.style.display = "none";
+    joinSection.style.display = "none"; // ← ログイン前は隠すのが自然
     teamSection.style.display = "none";
     scoreSection.style.display = "none";
-    joinSection.style.display = "block";
     return;
   }
-  // 試合一覧を表示
-matchesSection.style.display = "block";
 
-try {
-  await renderMatchesFromInvites(user);
-} catch (e) {
-  alert(`招待試合の表示に失敗: ${e.code}\n${e.message}`);
-  console.error(e);
-}
-
-
-  // ログイン中表示（メールに）
   statusEl.textContent = `ログイン中: ${user.email}`;
   logoutBtn.style.display = "inline-block";
-
-  // ログインしたら新規登録ボタンを消す（要望の1つ）
   signupBtn.style.display = "none";
 
-  // 管理者なら管理者セクション表示
+  // admin UI
   const ok = await isGlobalAdmin(user.uid);
   adminSection.style.display = ok ? "block" : "none";
 
-  // チーム/スコアは次ステップで match参加後に表示するので、いったん隠す
+  // team UI
+  joinSection.style.display = "block";      // 予備導線として残すなら
+  matchesSection.style.display = "block";   // 招待試合表示
+
+  try {
+    await renderMatchesFromInvites(user);
+  } catch (e) {
+    alert(`招待試合の表示に失敗: ${e.code}\n${e.message}`);
+    console.error(e);
+  }
+
   teamSection.style.display = "none";
   scoreSection.style.display = "none";
 });
-
-
-
-
-
-
-
