@@ -80,6 +80,9 @@ logoutBtn.addEventListener("click", async () => {
 
 // 管理者：試合作成
 createMatchBtn?.addEventListener("click", async () => {
+  alert("試合作成ボタンが押されました"); // ← これ
+
+createMatchBtn?.addEventListener("click", async () => {
   const user = auth.currentUser;
   if (!user) return alert("ログインしてください。");
 
@@ -133,3 +136,4 @@ onAuthStateChanged(auth, async (user) => {
   teamSection.style.display = "none";
   scoreSection.style.display = "none";
 });
+
