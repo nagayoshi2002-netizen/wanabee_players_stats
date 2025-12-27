@@ -23,7 +23,7 @@ const firebaseConfig = {
   projectId: "wanabee-players-stats",
   storageBucket: "wanabee-players-stats.firebasestorage.app",
   messagingSenderId: "392879235657",
-  appId: "1:392879235657:web:a0b0b0c87caf1643865598"
+  appId: "1:392879235657:web:a0b0b0c87caf1643865598",
 };
 
 // Initialize Firebase
@@ -198,4 +198,3 @@ onAuthStateChanged(auth, (user) => {
 });
 
 renderTimer();
-
