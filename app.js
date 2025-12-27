@@ -16,8 +16,10 @@ import {
   serverTimestamp,
   query,
   where,
-  getDocs
+  getDocs,
+  updateDoc
 } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-firestore.js";
+
 
 const firebaseConfig = {
   apiKey: "AIzaSyAcebN4AcESHXYgQbsM-qdJC4PvlfzBbmA",
@@ -57,6 +59,68 @@ const joinCodeEl = document.getElementById("join-code");
 const teamNameEl = document.getElementById("team-name");
 const joinBtn = document.getElementById("join-btn");
 const joinInfoEl = document.getElementById("join-info");
+
+// DOM（試合一覧）
+const matchesSection = document.getElementById("matches-section");
+const matchesList = document.getElementById("matches-list");
+
+async function fetchInvitesForEmail(email) {
+  const q = query(collection(db, "invites"), where("email", "==", email));
+  const snap = await getDocs(q);
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+async function ensureMembershipFromInvite(invite, user) {
+  // 招待が "usedAt" 済みでも membership が無い可能性に備えて、常に membership を確認して作る
+  const memRef = doc(db, "matches", invite.matchId, "memberships", user.uid);
+  const memSnap = await getDoc(memRef);
+
+  if (!memSnap.exists()) {
+    await setDoc(memRef, {
+      role: "team",
+      teamName: invite.teamName || "",
+      inviteId: invite.id,               // ルールの存在チェック用
+      createdAt: serverTimestamp(),
+    });
+  }
+
+  // usedAt を入れて「処理済み」管理（任意だが推奨）
+  const invRef = doc(db, "invites", invite.id);
+  const invSnap = await getDoc(invRef);
+  if (invSnap.exists() && !invSnap.data().usedAt) {
+    await updateDoc(invRef, { usedAt: serverTimestamp() });
+  }
+}
+
+async function renderMyMatches(user) {
+  matchesList.innerHTML = "";
+
+  // 自分の参加試合を探す簡易版：招待から matchId を列挙し、matches を読む
+  // （本番では memberships を起点に一覧化してもOK）
+  const invites = await fetchInvitesForEmail(user.email);
+
+  if (invites.length === 0) {
+    matchesList.innerHTML = "<li>現在、招待されている試合はありません。</li>";
+    return;
+  }
+
+  // 招待ごとに membership を確定
+  for (const inv of invites) {
+    await ensureMembershipFromInvite(inv, user);
+  }
+
+  // 試合情報を表示
+  for (const inv of invites) {
+    const matchSnap = await getDoc(doc(db, "matches", inv.matchId));
+    if (!matchSnap.exists()) continue;
+
+    const m = matchSnap.data();
+    const li = document.createElement("li");
+    li.textContent = `${m.title || "Untitled Match"}（matchId: ${inv.matchId}）`;
+    matchesList.appendChild(li);
+  }
+}
+
 
 function randomJoinCode(len = 8) {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -216,6 +280,7 @@ onAuthStateChanged(auth, async (user) => {
   teamSection.style.display = "none";
   scoreSection.style.display = "none";
 });
+
 
 
 
