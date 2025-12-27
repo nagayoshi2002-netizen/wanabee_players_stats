@@ -64,16 +64,40 @@ async function isGlobalAdmin(uid) {
 signupBtn.addEventListener("click", async () => {
   const email = emailEl.value.trim();
   const password = passEl.value;
-  if (!email || !password) return alert("メールとパスワードを入力してください。");
-  await createUserWithEmailAndPassword(auth, email, password);
+
+  if (!email || !password) {
+    alert("メールとパスワードを入力してください。");
+    return;
+  }
+
+  try {
+    await createUserWithEmailAndPassword(auth, email, password);
+    alert("新規登録成功");
+  } catch (e) {
+    alert(`新規登録失敗\n${e.code}\n${e.message}`);
+    console.error(e);
+  }
 });
+
 
 loginBtn.addEventListener("click", async () => {
   const email = emailEl.value.trim();
   const password = passEl.value;
-  if (!email || !password) return alert("メールとパスワードを入力してください。");
-  await signInWithEmailAndPassword(auth, email, password);
+
+  if (!email || !password) {
+    alert("メールとパスワードを入力してください。");
+    return;
+  }
+
+  try {
+    await signInWithEmailAndPassword(auth, email, password);
+    alert("ログイン成功");
+  } catch (e) {
+    alert(`ログイン失敗\n${e.code}\n${e.message}`);
+    console.error(e);
+  }
 });
+
 
 logoutBtn.addEventListener("click", async () => {
   await signOut(auth);
@@ -143,6 +167,7 @@ onAuthStateChanged(auth, async (user) => {
   teamSection.style.display = "none";
   scoreSection.style.display = "none";
 });
+
 
 
 
