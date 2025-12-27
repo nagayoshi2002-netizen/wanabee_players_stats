@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>スコア入力</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <h1>スコア入力</h1>
+
+  <!-- ログイン画面 -->
+  <section id="login-section">
+    <input type="email" id="email" placeholder="メールアドレス">
+    <input type="password" id="password" placeholder="パスワード">
+    <button id="login-btn">ログイン</button>
+  </section>
+
+  <!-- スコア入力画面 -->
+  <section id="score-section" style="display:none;">
+    <select id="player-select">
+      <option>選手を選択</option>
+    </select>
+    <button id="start-timer">タイマー開始</button>
+    <p id="timer">00:00</p>
+    <button id="record-score">スコア記録</button>
+    <ul id="score-list"></ul>
+  </section>
+
+  <script src="firebase-config.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
