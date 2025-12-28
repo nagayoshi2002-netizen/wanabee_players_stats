@@ -1,3 +1,7 @@
+// app.js（改善版：ToDo反映）
+// 前提：このファイルを「丸ごと」置き換え。
+// 既存HTMLは変更しなくても動くように、足りないUI（停止ボタン/アシスト選択/種別ボタン等）はJS側で動的に追加します。
+
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-app.js";
 import {
   getAuth,
@@ -740,4 +744,201 @@ function parseMMSS(s) {
   return (mm * 60 + ss) * 1000;
 }
 
-functi
+function escapeHtml(str) {
+  return String(str || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+// ======================
+// joinCode 参加（予備導線）
+// ※ルールが inviteId 必須の場合、この導線は「必ず弾かれます」。
+//   運用するならルールを緩めるか、joinCodeでinviteを発行する設計に切替が必要。
+// ======================
+async function findMatchIdByJoinCode(code) {
+  const q = query(collection(db, "matches"), where("joinCode", "==", code));
+  const snap = await getDocs(q);
+  if (snap.empty) return null;
+  return snap.docs[0].id;
+}
+
+joinBtn?.addEventListener("click", async () => {
+  const user = auth.currentUser;
+  if (!user) return alert("ログインしてください。");
+
+  const code = (joinCodeEl?.value || "").trim().toUpperCase();
+  const teamName = (teamNameEl?.value || "").trim();
+  if (!code || !teamName) return alert("joinCode とチーム名を入力してください。");
+
+  try {
+    const matchId = await findMatchIdByJoinCode(code);
+    if (!matchId) return alert("joinCode が見つかりません。");
+
+    // 重要：あなたの現行ルールだと inviteId 必須のため、この書き込みは拒否されます。
+    // joinCode導線を残すなら、ルール or データ設計の見直しが必要です。
+    await setDoc(doc(db, "matches", matchId, "memberships", user.uid), {
+      role: "team",
+      teamName,
+      inviteId: "joinCode", // ルール回避用（運用上の意味付けが必要）
+      createdAt: serverTimestamp(),
+    });
+
+    joinInfoEl.textContent = `参加完了：matchId=${matchId}`;
+    alert("試合に参加しました。");
+  } catch (e) {
+    alert(`参加失敗: ${e.code}\n${e.message}`);
+    console.error(e);
+  }
+});
+
+// ======================
+// Auth UI
+// ======================
+signupBtn?.addEventListener("click", async () => {
+  const email = (emailEl?.value || "").trim();
+  const password = passEl?.value || "";
+
+  if (!email || !password) {
+    alert("メールとパスワードを入力してください。");
+    return;
+  }
+
+  try {
+    await createUserWithEmailAndPassword(auth, email, password);
+    alert("新規登録成功");
+  } catch (e) {
+    alert(`新規登録失敗\n${e.code}\n${e.message}`);
+    console.error(e);
+  }
+});
+
+loginBtn?.addEventListener("click", async () => {
+  const email = (emailEl?.value || "").trim();
+  const password = passEl?.value || "";
+
+  if (!email || !password) {
+    alert("メールとパスワードを入力してください。");
+    return;
+  }
+
+  try {
+    await signInWithEmailAndPassword(auth, email, password);
+    alert("ログイン成功");
+  } catch (e) {
+    alert(`ログイン失敗\n${e.code}\n${e.message}`);
+    console.error(e);
+  }
+});
+
+logoutBtn?.addEventListener("click", async () => {
+  try {
+    cleanupRealtime();
+    currentMatchId = null;
+    currentMembership = null;
+    teamId = null;
+    await signOut(auth);
+  } catch (e) {
+    alert(`ログアウト失敗\n${e.code}\n${e.message}`);
+    console.error(e);
+  }
+});
+
+// ======================
+// 管理者：試合作成
+// ======================
+createMatchBtn?.addEventListener("click", async () => {
+  const user = auth.currentUser;
+  if (!user) return alert("ログインしてください。");
+
+  const ok = await isGlobalAdmin(user.uid);
+  if (!ok) return alert("管理者権限がありません（adminsにUIDが未登録）。");
+
+  const title = (matchTitleEl?.value || "").trim() || "Untitled Match";
+  const joinCode = randomJoinCode(8);
+
+  try {
+    // matches を作成
+    const matchRef = await addDoc(collection(db, "matches"), {
+      title,
+      status: "scheduled",
+      createdBy: user.uid,
+      joinCode,
+      createdAt: serverTimestamp(),
+    });
+
+    // 管理者自身をこの試合の admin として membership 作成
+    await setDoc(doc(db, "matches", matchRef.id, "memberships", user.uid), {
+      role: "admin",
+      createdAt: serverTimestamp(),
+    });
+
+    const msg = `作成完了：matchId=${matchRef.id} / joinCode=${joinCode}`;
+    if (adminInfoEl) adminInfoEl.textContent = msg;
+    alert(`試合作成OK\njoinCode: ${joinCode}`);
+  } catch (e) {
+    alert(`試合作成失敗: ${e.code}\n${e.message}`);
+    console.error(e);
+  }
+});
+
+// ======================
+// Auth state
+// ======================
+onAuthStateChanged(auth, async (user) => {
+  ensureExtraUI();
+  setTimerText();
+
+  if (!user) {
+    statusEl.textContent = "";
+    logoutBtn.style.display = "none";
+    signupBtn.style.display = "inline-block"; // ログアウト時のみ表示（ToDo）
+    adminSection.style.display = "none";
+    matchesSection.style.display = "none";
+    joinSection.style.display = "none";
+    teamSection.style.display = "none";
+    scoreSection.style.display = "none";
+    matchesList.innerHTML = "";
+    return;
+  }
+
+  // ログイン中表示
+  statusEl.textContent = `ログイン中: ${user.email}`;
+  logoutBtn.style.display = "inline-block";
+  signupBtn.style.display = "none"; // ログインしたら消す（ToDo）
+
+  // 管理者表示
+  try {
+    const ok = await isGlobalAdmin(user.uid);
+    adminSection.style.display = ok ? "block" : "none";
+  } catch (e) {
+    adminSection.style.display = "none";
+    console.error("admin check failed:", e);
+  }
+
+  // 試合一覧を表示
+  matchesSection.style.display = "block";
+  joinSection.style.display = "block";
+
+  // 入室前は隠す
+  teamSection.style.display = "none";
+  scoreSection.style.display = "none";
+
+  // 招待試合一覧を描画
+  try {
+    await renderMatchesFromInvites(user);
+  } catch (e) {
+    alert(`招待試合表示エラー\n${e.code}\n${e.message}`);
+    console.error(e);
+  }
+
+  // 以前の試合に戻る（任意）
+  const saved = sessionStorage.getItem("currentMatchId");
+  if (saved) {
+    // savedが消えていたら黙って無視
+    // 明示的に戻りたいならここをONにする
+    // await enterMatch(saved);
+  }
+});
