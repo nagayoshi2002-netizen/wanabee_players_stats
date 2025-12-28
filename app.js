@@ -129,11 +129,13 @@ async function ensureMembershipFromInvite(invite, user) {
   }
 
   // invite を処理済みにする（任意：重複管理用）
+  /*
   const invRef = doc(db, "invites", invite.id);
   const invSnap = await getDoc(invRef);
   if (invSnap.exists() && !invSnap.data().usedAt) {
     await updateDoc(invRef, { usedAt: serverTimestamp() });
   }
+  */
 }
 
 async function renderMatchesFromInvites(user) {
@@ -374,6 +376,7 @@ async function renderMatchesFromInvites(user) {
   teamSection.style.display = "none";
   scoreSection.style.display = "none";
 });
+
 
 
 
