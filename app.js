@@ -1,3 +1,6 @@
+// app.js（完全版：emailLower 前提で invites を取得する版）
+// これを app.js に「全文置換」で貼り付け
+
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-app.js";
 import {
   getAuth,
@@ -116,10 +119,10 @@ const matchPlayersListEl = document.getElementById("match-players-list");
 // State
 // ======================
 let currentMatchId = null;
-let currentMatch = null;        // matches/{matchId} data
-let currentTournamentId = null; // matches.tournamentId（あれば）
+let currentMatch = null;
+let currentTournamentId = null;
 let currentMembership = null;
-let teamId = null;              // = auth.uid（チーム識別）
+let teamId = null;
 
 // Timer
 let timerBaseMs = 0;
@@ -129,7 +132,7 @@ let timerIntervalId = null;
 // dynamic UI
 let assistSelectEl = null;
 let stopTimerBtn = null;
-let eventButtons = {}; // {goal, callahan, block}
+let eventButtons = {};
 let scoreLeftEl = null;
 let scoreRightEl = null;
 let scoreRowEl = null;
@@ -249,7 +252,7 @@ function tournamentTeamPlayerRef(tournamentId, teamId_, playerId) {
 }
 
 // ======================
-// UI bootstrap（動的追加：Stop/Assist/他イベント/スコア表示）
+// UI bootstrap
 // ======================
 function ensureExtraUI() {
   // Stopボタン
@@ -304,7 +307,6 @@ function ensureExtraUI() {
     btnBlock.addEventListener("click", () => recordEvent("block"));
   }
 
-  // Start/Reset
   startTimerBtn?.addEventListener("click", startTimer);
   resetTimerBtn?.addEventListener("click", resetTimer);
 
@@ -396,10 +398,11 @@ function cleanupAdminRealtime() {
 }
 
 // ======================
-// Invites / matches list
+// Invites / matches list（emailLower 前提）
 // ======================
-async function fetchInvitesForEmail(emailLower) {
-  const q = query(invitesCol(), where("email", "==", emailLower));
+async function fetchInvitesForEmailLower(emailLower) {
+  // ★ここが本丸：emailLower で検索
+  const q = query(invitesCol(), where("emailLower", "==", emailLower));
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
@@ -426,13 +429,15 @@ function formatMatchLabel(matchData, invite) {
 
 async function renderMatchesFromInvites(user) {
   matchesList.innerHTML = "";
+
+  // token email とズレてもここは最終的に lower 化して使う
   const emailKey = normalizeEmail(user.email);
 
   let invites = [];
   try {
-    invites = await fetchInvitesForEmail(emailKey);
+    invites = await fetchInvitesForEmailLower(emailKey);
   } catch (e) {
-    alert(`invites 読み込み権限エラー\n${e.code}\n${e.message}`);
+    alert(`invites 読み込み権限エラー\n${e.code}\n${e.message}\n\n※invites に emailLower が入っているか確認してください。`);
     console.error(e);
     return;
   }
@@ -587,7 +592,6 @@ async function enterMatch(matchId) {
   // UI
   matchesSection.style.display = "none";
   joinSection.style.display = "none";
-  adminSection.style.display = adminSection.style.display; // no-op
   teamAdminSection.style.display = "none";
   teamSection.style.display = "none";
   scoreSection.style.display = "block";
@@ -643,7 +647,6 @@ function goBackToMatches() {
 
 backToMatchesBtn?.addEventListener("click", goBackToMatches);
 
-// スコア入力から選手管理へ
 openTeamAdminBtn?.addEventListener("click", async () => {
   if (!currentMatchId) return alert("試合が未選択です。");
   await openTeamAdmin(currentMatchId);
@@ -665,7 +668,7 @@ async function recordEvent(type) {
 
   try {
     await addDoc(eventsCol(currentMatchId), {
-      type, // "goal" | "callahan" | "block"
+      type,
       timeMs,
       teamId,
       scorerPlayerId: scorerId,
@@ -721,7 +724,6 @@ async function renderEvents(events) {
     scoreListEl.appendChild(li);
   }
 
-  // edit/delete（簡易：admin-only update/delete ルールの場合は失敗するので注意）
   scoreListEl.onclick = async (e) => {
     const btn = e.target?.closest?.("button");
     if (!btn) return;
@@ -807,7 +809,7 @@ function subscribeScoreAggregate(matchId) {
 }
 
 // ======================
-// Team admin (大会マスタ共有 + 試合選手管理)
+// Team admin（大会マスタ共有 + 試合選手管理）
 // ======================
 async function openTeamAdmin(matchId) {
   const user = auth.currentUser;
@@ -816,11 +818,9 @@ async function openTeamAdmin(matchId) {
   cleanupMatchRealtime();
   cleanupAdminRealtime();
 
-  // membership check
   const mem = await loadMyMembership(matchId, user);
   if (!mem) return alert("この試合の参加権限がありません。");
 
-  // match
   const m = await loadMatch(matchId);
   if (!m) return alert("試合が見つかりません。");
 
@@ -829,7 +829,6 @@ async function openTeamAdmin(matchId) {
   currentTournamentId = m.tournamentId || null;
   teamId = user.uid;
 
-  // UI
   matchesSection.style.display = "none";
   joinSection.style.display = "none";
   scoreSection.style.display = "none";
@@ -838,9 +837,7 @@ async function openTeamAdmin(matchId) {
 
   const title = (m.title || "Untitled Match").trim();
   const tour = currentTournamentId ? currentTournamentId : "（未設定）";
-  if (teamAdminContextEl) {
-    teamAdminContextEl.textContent = `対象試合：${title} / tournamentId: ${tour}`;
-  }
+  if (teamAdminContextEl) teamAdminContextEl.textContent = `対象試合：${title} / tournamentId: ${tour}`;
 
   backToMatchesFromAdminBtn.onclick = () => goBackToMatches();
   goToScoreFromAdminBtn.onclick = () => enterMatch(matchId);
@@ -922,7 +919,8 @@ async function openTeamAdmin(matchId) {
     const name = (tournamentPlayerNameEl.value || "").trim();
     if (!number || !name) return alert("背番号と名前を入力してください。");
     await addDoc(tournamentTeamPlayersCol(currentTournamentId, teamId), {
-      number, name,
+      number,
+      name,
       active: true,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
@@ -954,7 +952,8 @@ async function openTeamAdmin(matchId) {
     const name = (matchPlayerNameEl.value || "").trim();
     if (!number || !name) return alert("背番号と名前を入力してください。");
     await addDoc(matchPlayersCol(matchId, teamId), {
-      number, name,
+      number,
+      name,
       active: true,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
@@ -988,7 +987,7 @@ async function openTeamAdmin(matchId) {
   // ---- 大会→試合コピー
   copyTournamentToMatchBtn.onclick = async () => {
     if (!currentTournamentId) return alert("tournamentId が未設定です。");
-    // 既存がある場合は上書きするか確認
+
     const existing = await getDocs(query(matchPlayersCol(matchId, teamId)));
     if (!existing.empty) {
       const ok = confirm("この選手は既に存在します。削除して大会情報からコピーしますか？");
@@ -1053,7 +1052,6 @@ async function clearAllMatchPlayers(matchId, teamId_) {
   const snap = await getDocs(query(matchPlayersCol(matchId, teamId_)));
   if (snap.empty) return;
 
-  // バッチは 500 件制限があるので分割（安全）
   let batch = writeBatch(db);
   let count = 0;
   for (const d of snap.docs) {
@@ -1107,7 +1105,6 @@ joinBtn?.addEventListener("click", async () => {
     const matchId = await findMatchIdByJoinCode(code);
     if (!matchId) return alert("joinCode が見つかりません。");
 
-    // ルールが inviteId 必須の場合、joinCode導線は設計/ルール調整が必要です。
     await setDoc(membershipRef(matchId, user.uid), {
       role: "team",
       teamName,
@@ -1152,14 +1149,17 @@ addPlayerBtn?.addEventListener("click", async () => {
 });
 
 // ======================
-// Auth UI
+// Auth UI（入力メールを自動で小文字化して処理）
 // ======================
 signupBtn?.addEventListener("click", async () => {
-  const email = (emailEl?.value || "").trim();
+  const emailRaw = (emailEl?.value || "");
+  const email = normalizeEmail(emailRaw);
   const password = passEl?.value || "";
+
   if (!email || !password) return alert("メールとパスワードを入力してください。");
 
   try {
+    emailEl.value = email;
     await createUserWithEmailAndPassword(auth, email, password);
     alert("新規登録成功");
   } catch (e) {
@@ -1169,11 +1169,14 @@ signupBtn?.addEventListener("click", async () => {
 });
 
 loginBtn?.addEventListener("click", async () => {
-  const email = (emailEl?.value || "").trim();
+  const emailRaw = (emailEl?.value || "");
+  const email = normalizeEmail(emailRaw);
   const password = passEl?.value || "";
+
   if (!email || !password) return alert("メールとパスワードを入力してください。");
 
   try {
+    emailEl.value = email;
     await signInWithEmailAndPassword(auth, email, password);
     alert("ログイン成功");
   } catch (e) {
@@ -1202,8 +1205,6 @@ logoutBtn?.addEventListener("click", async () => {
 
 // ======================
 // 管理者：試合作成
-// （注意）大会単位マスタ共有を使うなら、match に tournamentId を入れるのが理想。
-// 今回は UI 追加なしで、将来のため tournamentId を空で作成しても動くようにしています。
 // ======================
 createMatchBtn?.addEventListener("click", async () => {
   const user = auth.currentUser;
@@ -1221,7 +1222,7 @@ createMatchBtn?.addEventListener("click", async () => {
       status: "scheduled",
       createdBy: user.uid,
       joinCode,
-      tournamentId: "", // ★運用で入れるならここに値を入れる
+      tournamentId: "",
       createdAt: serverTimestamp(),
     });
 
@@ -1265,9 +1266,8 @@ onAuthStateChanged(auth, async (user) => {
 
   statusEl.textContent = `ログイン中: ${user.email}`;
   logoutBtn.style.display = "inline-block";
-  signupBtn.style.display = "none"; // 要件：ログインしたら新規登録を消す
+  signupBtn.style.display = "none";
 
-  // 管理者表示
   try {
     const ok = await isGlobalAdmin(user.uid);
     adminSection.style.display = ok ? "block" : "none";
@@ -1275,7 +1275,6 @@ onAuthStateChanged(auth, async (user) => {
     adminSection.style.display = "none";
   }
 
-  // 初期画面
   cleanupMatchRealtime();
   cleanupAdminRealtime();
 
@@ -1285,7 +1284,5 @@ onAuthStateChanged(auth, async (user) => {
   joinSection.style.display = "block";
   matchesSection.style.display = "block";
 
-  // 試合一覧
   await renderMatchesFromInvites(user);
 });
-
