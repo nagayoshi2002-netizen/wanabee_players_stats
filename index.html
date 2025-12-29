@@ -1,4 +1,3 @@
-<!-- index.html（完全版：チーム画面＋チーム管理者（大会マスタ/試合選手）＋スコア入力＋戻るボタン） -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -33,7 +32,7 @@
     </div>
 
     <p class="hint">
-      試合名は「A vs B」形式を推奨します（チーム側の試合一覧表示に使用）。
+      試合名は「A vs B」形式で入力してください。
     </p>
 
     <p id="admin-info" class="hint"></p>
@@ -41,7 +40,7 @@
 
   <!-- チーム：joinCode参加（予備導線） -->
   <section id="join-section" style="display:none;">
-    <h2>チーム：試合に参加（予備導線）</h2>
+    <h2>チーム：試合に参加</h2>
     <div class="row">
       <input type="text" id="join-code" placeholder="joinCode（例：ABCD1234）">
       <input type="text" id="team-name" placeholder="チーム名（例：Wanabee A）">
@@ -54,7 +53,6 @@
   <section id="matches-section" style="display:none;">
     <h2>参加できる試合</h2>
     <ul id="matches-list"></ul>
-    <p class="hint">試合名は「対戦チーム vs 対戦チーム」形式で表示されます。</p>
   </section>
 
   <!-- チーム管理者：選手管理（大会マスタ/試合選手） -->
@@ -72,22 +70,21 @@
 
     <h3>大会単位：選手マスタ（共有）</h3>
     <p class="hint">
-      この大会の選手マスタを編集します。試合開始前に登録しておくと便利です。
-      「試合へコピー」で、その試合の選手リストへ複製できます（過去試合の再現性を崩さないためコピー方式）。
+      この大会の選手情報を編集します。試合開始前に登録して、「試合へコピー」を押してください。
     </p>
 
     <div class="row">
-      <button id="copy-tournament-to-match-btn" class="ghost">大会マスタをこの試合へコピー</button>
+      <button id="copy-tournament-to-match-btn" class="ghost">選手情報をこの試合へコピー</button>
       <button id="clear-match-players-btn" class="ghost">この試合の選手を全削除</button>
     </div>
 
-    <h4>大会マスタ：一括登録（背番号,名前 1行1選手）</h4>
+    <h4>大会マスタ：一括登録（背番号,名前）</h4>
     <textarea id="bulk-tournament-players" rows="6" style="width:100%;" placeholder="例：
 12,山田太郎
 7,佐藤花子
 "></textarea>
     <div class="row">
-      <button id="bulk-add-tournament-btn">大会マスタへ一括追加</button>
+      <button id="bulk-add-tournament-btn">チームへ一括追加</button>
     </div>
 
     <h4>大会マスタ：個別追加</h4>
@@ -104,10 +101,10 @@
 
     <h3>試合単位：選手リスト（この試合で使用）</h3>
     <p class="hint">
-      試合中の編集も可能です。大会マスタの内容を反映したい場合は「大会マスタをこの試合へコピー」を使用してください。
+      試合中の編集も可能です。選手情報の内容を反映したい場合は「選手情報をこの試合へコピー」を使用してください。
     </p>
 
-    <h4>この試合：一括登録（背番号,名前 1行1選手）</h4>
+    <h4>この試合：一括登録（背番号,名前）</h4>
     <textarea id="bulk-match-players" rows="6" style="width:100%;" placeholder="例：
 12,山田太郎
 7,佐藤花子
@@ -129,9 +126,9 @@
 
   <!-- スコア入力 -->
   <section id="team-section" style="display:none;">
-    <h2>選手登録（簡易）</h2>
+    <h2>選手登録</h2>
     <p class="hint">
-      ここは簡易登録のまま残しています。チーム管理者画面（選手管理）を推奨します。
+      ここは簡易登録です。チーム管理者画面（選手管理）からの選手追加を推奨します。
     </p>
     <div class="row">
       <input type="text" id="player-name" placeholder="名前（例：山田 太郎）" />
@@ -164,10 +161,11 @@
       <!-- キャナハン/ブロックは app.js で追加 -->
     </div>
 
-    <h3>記録ログ</h3>
+    <h3>試合記録</h3>
     <ul id="score-list"></ul>
   </section>
 
   <script type="module" src="app.js"></script>
 </body>
 </html>
+
