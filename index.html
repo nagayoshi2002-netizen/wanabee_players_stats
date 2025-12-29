@@ -1,3 +1,6 @@
+<!-- index.html（差分は見た目のみ：app.jsが自動でスコア表示を追加するため、HTML変更は必須ではありません）
+     ただし、試合一覧の説明文を「対戦チーム vs 対戦チーム」前提に軽く更新しています。 -->
+
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -9,7 +12,6 @@
 <body>
   <h1>Wanabee Players Stats</h1>
 
-  <!-- ログイン -->
   <section id="login-section">
     <h2>ログイン</h2>
     <input type="email" id="email" placeholder="メールアドレス" autocomplete="email" />
@@ -22,18 +24,16 @@
     <p id="login-status" class="hint"></p>
   </section>
 
-  <!-- 管理者：試合作成（管理者のみ表示） -->
   <section id="admin-section" style="display:none;">
     <h2>管理者：試合作成</h2>
     <div class="row">
       <input type="text" id="match-title" placeholder="試合名（例：Wanabee A vs Wanabee B）">
       <button id="create-match-btn">試合を作成</button>
     </div>
-    <p class="hint">作成後に表示される joinCode を対戦チームに共有します。</p>
+    <p class="hint">試合名は「A vs B」形式で入力してください（試合一覧表示に使用します）。</p>
     <p id="admin-info" class="hint"></p>
   </section>
 
-  <!-- チーム：joinCode参加（予備導線） -->
   <section id="join-section" style="display:none;">
     <h2>チーム：試合に参加（予備導線）</h2>
     <div class="row">
@@ -42,20 +42,14 @@
       <button id="join-btn">参加</button>
     </div>
     <p id="join-info" class="hint"></p>
-    <p class="hint">
-      注意：現在のFirestoreルールが「inviteId必須」の場合、この導線は弾かれます。
-      招待（invites）運用を推奨します。
-    </p>
   </section>
 
-  <!-- 参加できる試合（招待から表示） -->
   <section id="matches-section" style="display:none;">
     <h2>参加できる試合</h2>
     <ul id="matches-list"></ul>
-    <p class="hint">試合をクリックすると入室します。</p>
+    <p class="hint">表示は「対戦チーム vs 対戦チーム」形式です。試合をクリックすると入室します。</p>
   </section>
 
-  <!-- 選手登録 -->
   <section id="team-section" style="display:none;">
     <h2>選手登録（自チーム）</h2>
     <div class="row">
@@ -64,10 +58,8 @@
       <button id="add-player-btn">追加</button>
     </div>
     <p class="hint">登録した選手は下のプルダウンに反映されます。</p>
-    <!-- players-admin-box は app.js が動的生成します -->
   </section>
 
-  <!-- スコア入力 -->
   <section id="score-section" style="display:none;">
     <h2>スコア入力</h2>
 
@@ -75,9 +67,7 @@
       <select id="player-select">
         <option value="">選手を選択</option>
       </select>
-      <!-- assist-select は app.js が動的生成します -->
       <button id="start-timer-btn">タイマー開始</button>
-      <!-- stop-timer-btn は app.js が動的生成します -->
       <button id="reset-timer-btn" class="ghost">リセット</button>
     </div>
 
@@ -85,15 +75,10 @@
 
     <div class="row">
       <button id="record-score-btn">得点を記録</button>
-      <!-- record-callahan-btn / record-block-btn は app.js が動的生成します -->
     </div>
 
     <h3>記録ログ</h3>
     <ul id="score-list"></ul>
-    <p class="hint">
-      ログは「編集」「削除」が可能です（編集UIは現状promptベース）。
-      必要ならモーダルUIに置き換えます。
-    </p>
   </section>
 
   <script type="module" src="app.js"></script>
