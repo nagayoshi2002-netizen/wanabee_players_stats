@@ -1,6 +1,3 @@
-<!-- index.html（差分は見た目のみ：app.jsが自動でスコア表示を追加するため、HTML変更は必須ではありません）
-     ただし、試合一覧の説明文を「対戦チーム vs 対戦チーム」前提に軽く更新しています。 -->
-
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -30,7 +27,7 @@
       <input type="text" id="match-title" placeholder="試合名（例：Wanabee A vs Wanabee B）">
       <button id="create-match-btn">試合を作成</button>
     </div>
-    <p class="hint">試合名は「A vs B」形式で入力してください（試合一覧表示に使用します）。</p>
+    <p class="hint">試合名は「A vs B」形式で入力してください。</p>
     <p id="admin-info" class="hint"></p>
   </section>
 
@@ -49,7 +46,40 @@
     <ul id="matches-list"></ul>
     <p class="hint">表示は「対戦チーム vs 対戦チーム」形式です。試合をクリックすると入室します。</p>
   </section>
+<section id="team-admin-section" style="display:none;">
+  <h2>チーム管理者：選手登録（試合前でも編集可）</h2>
 
+  <p class="hint">
+    試合を選ぶと、その試合の「自チーム選手リスト」を編集できます。
+    形式：背番号,名前（1行1選手）
+  </p>
+
+  <div class="row">
+    <button id="back-to-matches-btn" class="ghost">試合一覧に戻る</button>
+    <button id="go-to-score-btn">スコア入力に進む</button>
+  </div>
+
+  <h3>一括登録</h3>
+  <textarea id="bulk-players" rows="8" style="width:100%;" placeholder="例：
+12,山田太郎
+7,佐藤花子
+"></textarea>
+  <div class="row">
+    <button id="bulk-add-btn">一括で追加</button>
+  </div>
+
+  <h3>個別追加</h3>
+  <div class="row">
+    <input type="text" id="admin-player-number" placeholder="背番号（例：12）" />
+    <input type="text" id="admin-player-name" placeholder="名前（例：山田 太郎）" />
+    <button id="admin-add-player-btn">追加</button>
+  </div>
+
+  <h3>登録済み選手（編集・削除）</h3>
+  <ul id="admin-players-list"></ul>
+</section>
+
+     
   <section id="team-section" style="display:none;">
     <h2>選手登録（自チーム）</h2>
     <div class="row">
@@ -84,3 +114,4 @@
   <script type="module" src="app.js"></script>
 </body>
 </html>
+
