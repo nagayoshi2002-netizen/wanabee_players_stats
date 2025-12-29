@@ -1,7 +1,3 @@
-// app.js（改善版：ToDo反映）
-// 前提：このファイルを「丸ごと」置き換え。
-// 既存HTMLは変更しなくても動くように、足りないUI（停止ボタン/アシスト選択/種別ボタン等）はJS側で動的に追加します。
-
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-app.js";
 import {
   getAuth,
@@ -92,9 +88,9 @@ const scoreListEl = document.getElementById("score-list");
 // ======================
 let currentMatchId = null;
 let currentMembership = null; // { role, teamName, ... }
-let teamId = null;            // = auth.uid をチーム識別に使う（対戦相手も別uid）
-let timerBaseMs = 0;          // タイマー表示用（開始〜停止で加算）
-let timerStartAt = null;      // Date.now() when running
+let teamId = null;            // auth.uid
+let timerBaseMs = 0;
+let timerStartAt = null;
 let timerIntervalId = null;
 
 let assistSelectEl = null;
@@ -102,6 +98,10 @@ let stopTimerBtn = null;
 let eventButtons = {};        // {goal, callahan, block}
 let unsubscribePlayers = null;
 let unsubscribeEvents = null;
+
+let scoreLeftEl = null;       // 自チーム得点
+let scoreRightEl = null;      // 相手得点
+let lastScore = { my: 0, opp: 0 };
 
 // ======================
 // utils
@@ -134,13 +134,22 @@ function setTimerText() {
   timerEl.textContent = msToMMSS(currentTimerMs());
 }
 
+function normalizeEmail(email) {
+  return (email || "").trim().toLowerCase();
+}
+
 async function isGlobalAdmin(uid) {
   const snap = await getDoc(doc(db, "admins", uid));
   return snap.exists();
 }
 
-function normalizeEmail(email) {
-  return (email || "").trim().toLowerCase();
+function escapeHtml(str) {
+  return String(str || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
 }
 
 // ======================
@@ -155,7 +164,6 @@ function ensureExtraUI() {
     stopTimerBtn.className = "ghost";
     stopTimerBtn.style.marginLeft = "8px";
     startTimerBtn.parentElement?.appendChild(stopTimerBtn);
-
     stopTimerBtn.addEventListener("click", () => stopTimer());
   }
 
@@ -171,10 +179,9 @@ function ensureExtraUI() {
     playerSelectEl.parentElement?.insertBefore(assistSelectEl, startTimerBtn || null);
   }
 
-  // 3) 得点以外のボタン（キャナハン/ブロック）を追加
+  // 3) 種別ボタン（キャナハン/ブロック）を追加
   if (recordScoreBtn && !eventButtons.callahan) {
-    const row = recordScoreBtn.parentElement; // HTML上は <div class="row">内
-    // 既存の「得点を記録」は goal として扱う
+    const row = recordScoreBtn.parentElement;
     recordScoreBtn.textContent = "得点を記録（ゴール）";
     eventButtons.goal = recordScoreBtn;
 
@@ -196,22 +203,81 @@ function ensureExtraUI() {
     eventButtons.callahan = btnCallahan;
     eventButtons.block = btnBlock;
 
-    // イベント記録
     recordScoreBtn.addEventListener("click", () => recordEvent("goal"));
     btnCallahan.addEventListener("click", () => recordEvent("callahan"));
     btnBlock.addEventListener("click", () => recordEvent("block"));
   }
+
+  // 4) タイマー左右に得点表示（timerElの前後にspanを挿入）
+  ensureScoreAroundTimer();
 
   // Start / Reset ハンドラ（既存ボタン）
   startTimerBtn?.addEventListener("click", () => startTimer());
   resetTimerBtn?.addEventListener("click", () => resetTimer());
 }
 
+function ensureScoreAroundTimer() {
+  if (!timerEl) return;
+  const parent = timerEl.parentElement;
+  if (!parent) return;
+
+  // timerEl が単体pなので、ラッパーを作って左右に配置
+  if (!document.getElementById("timer-score-wrap")) {
+    const wrap = document.createElement("div");
+    wrap.id = "timer-score-wrap";
+    wrap.style.display = "flex";
+    wrap.style.alignItems = "center";
+    wrap.style.justifyContent = "space-between";
+    wrap.style.gap = "12px";
+    wrap.style.margin = "10px 0";
+
+    scoreLeftEl = document.createElement("div");
+    scoreLeftEl.id = "score-left";
+    scoreLeftEl.style.minWidth = "80px";
+    scoreLeftEl.style.textAlign = "center";
+    scoreLeftEl.innerHTML = `<div class="hint">自チーム</div><div style="font-size:28px;font-weight:700;">0</div>`;
+
+    scoreRightEl = document.createElement("div");
+    scoreRightEl.id = "score-right";
+    scoreRightEl.style.minWidth = "80px";
+    scoreRightEl.style.textAlign = "center";
+    scoreRightEl.innerHTML = `<div class="hint">相手</div><div style="font-size:28px;font-weight:700;">0</div>`;
+
+    // timerEl を wrap に移動
+    const timerClone = timerEl; // 既存をそのまま使う
+    timerClone.style.margin = "0";
+    timerClone.style.flex = "1";
+    timerClone.style.textAlign = "center";
+
+    // wrap を timerEl の位置に挿入
+    parent.insertBefore(wrap, timerEl);
+    wrap.appendChild(scoreLeftEl);
+    wrap.appendChild(timerClone);
+    wrap.appendChild(scoreRightEl);
+
+    // 初期表示
+    updateScoreUI(0, 0);
+  } else {
+    // 既にwrapがある場合、参照を再取得
+    scoreLeftEl = document.getElementById("score-left");
+    scoreRightEl = document.getElementById("score-right");
+  }
+}
+
+function updateScoreUI(my, opp) {
+  lastScore = { my, opp };
+
+  const leftNum = scoreLeftEl?.querySelector("div:nth-child(2)");
+  const rightNum = scoreRightEl?.querySelector("div:nth-child(2)");
+  if (leftNum) leftNum.textContent = String(my);
+  if (rightNum) rightNum.textContent = String(opp);
+}
+
 // ======================
 // Timer controls（Start/Stop/Reset）
 // ======================
 function startTimer() {
-  if (timerIntervalId) return; // already running
+  if (timerIntervalId) return;
   if (timerStartAt == null) timerStartAt = Date.now();
 
   timerIntervalId = window.setInterval(() => {
@@ -226,7 +292,6 @@ function stopTimer() {
   clearInterval(timerIntervalId);
   timerIntervalId = null;
 
-  // 加算して停止
   timerBaseMs = currentTimerMs();
   timerStartAt = null;
   setTimerText();
@@ -252,7 +317,6 @@ async function fetchInvitesForEmail(emailLower) {
 }
 
 async function ensureMembershipFromInvite(invite, user) {
-  // matches/{matchId}/memberships/{uid}
   const memRef = doc(db, "matches", invite.matchId, "memberships", user.uid);
   const memSnap = await getDoc(memRef);
 
@@ -284,7 +348,6 @@ async function renderMatchesFromInvites(user) {
     return;
   }
 
-  // 招待→membership化
   try {
     for (const inv of invites) {
       await ensureMembershipFromInvite(inv, user);
@@ -295,7 +358,6 @@ async function renderMatchesFromInvites(user) {
     return;
   }
 
-  // 試合表示
   for (const inv of invites) {
     try {
       const matchSnap = await getDoc(doc(db, "matches", inv.matchId));
@@ -309,7 +371,6 @@ async function renderMatchesFromInvites(user) {
       matchesList.appendChild(li);
     } catch (e) {
       console.error("match read failed:", inv.matchId, e);
-      // 1件失敗しても継続
     }
   }
 }
@@ -339,12 +400,10 @@ async function enterMatch(matchId) {
   const user = auth.currentUser;
   if (!user) return alert("ログインしてください。");
 
-  // 状態更新
   cleanupRealtime();
   currentMatchId = matchId;
   sessionStorage.setItem("currentMatchId", matchId);
 
-  // membership 読み込み（ロール/チーム名）
   try {
     currentMembership = await loadMyMembership(matchId, user);
     if (!currentMembership) {
@@ -358,23 +417,22 @@ async function enterMatch(matchId) {
     return;
   }
 
-  // UI切替
   matchesSection.style.display = "none";
   joinSection.style.display = "none";
   teamSection.style.display = "block";
   scoreSection.style.display = "block";
 
-  // ロード
   resetTimer();
   ensureExtraUI();
+  updateScoreUI(0, 0);
+
   subscribePlayers(matchId, teamId);
   subscribeEvents(matchId);
 }
 
 // ======================
-// Players（チームごとの選手マスタ：事前登録＆試合後も編集可）
-// 設計：matches/{matchId}/teams/{teamId}/players/{playerId}
-// teamId = auth.uid（＝チームのログイン単位）
+// Players（メール不要：name + number）
+// matches/{matchId}/teams/{teamId}/players/{playerId}
 // ======================
 function playersColRef(matchId, teamId_) {
   return collection(db, "matches", matchId, "teams", teamId_, "players");
@@ -385,14 +443,10 @@ async function addPlayer(matchId, teamId_) {
   const number = (playerNumberEl?.value || "").trim();
   if (!name || !number) return alert("名前と背番号を入力してください。");
 
-  // HTMLにemail入力欄が無いので、必要ならpromptで取得（空でも可）
-  const email = prompt("選手のメールアドレス（任意）:", "") || "";
-
   try {
     await addDoc(playersColRef(matchId, teamId_), {
       name,
       number,
-      email: normalizeEmail(email),
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
       active: true,
@@ -418,7 +472,6 @@ function upsertPlayerOption(select, playerDoc) {
 }
 
 function rebuildSelects(players) {
-  // scorer
   if (playerSelectEl) {
     const keep0 = playerSelectEl.querySelector('option[value=""]') || null;
     playerSelectEl.innerHTML = "";
@@ -431,7 +484,6 @@ function rebuildSelects(players) {
     }
   }
 
-  // assist
   if (assistSelectEl) {
     const keep0 = assistSelectEl.querySelector('option[value=""]') || null;
     assistSelectEl.innerHTML = "";
@@ -451,7 +503,6 @@ function rebuildSelects(players) {
 }
 
 function subscribePlayers(matchId, teamId_) {
-  // 自チームのplayersのみ購読（運用：対戦相手は自分のチームで別uid）
   const qref = query(playersColRef(matchId, teamId_), orderBy("number", "asc"));
   unsubscribePlayers = onSnapshot(
     qref,
@@ -468,7 +519,6 @@ function subscribePlayers(matchId, teamId_) {
 }
 
 function renderPlayersManagement(players) {
-  // HTMLに管理UIがないため、team-section の下に簡易一覧を生成して編集/削除を提供
   if (!teamSection) return;
 
   let box = document.getElementById("players-admin-box");
@@ -488,10 +538,9 @@ function renderPlayersManagement(players) {
     .map((p) => {
       const safeName = (p.name || "").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
       const safeNum = (p.number || "").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
-      const safeEmail = (p.email || "").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
       return `
         <li data-player-id="${p.id}">
-          <span>${safeNum} ${safeName} ${safeEmail ? " / " + safeEmail : ""}</span>
+          <span>${safeNum} ${safeName}</span>
           <button class="ghost" data-action="edit">編集</button>
           <button class="ghost" data-action="delete">削除</button>
         </li>
@@ -502,70 +551,68 @@ function renderPlayersManagement(players) {
   box.innerHTML = `
     <h3 style="margin: 12px 0 6px;">選手一覧（編集可）</h3>
     <ul id="players-admin-list" style="padding-left: 16px;">${rows}</ul>
-    <p class="hint">編集：名前/背番号/メールアドレスを変更できます（試合開始後も可）。</p>
   `;
 
   const list = document.getElementById("players-admin-list");
-  list?.addEventListener("click", async (ev) => {
-    const btn = ev.target?.closest?.("button");
-    if (!btn) return;
+  list?.addEventListener(
+    "click",
+    async (ev) => {
+      const btn = ev.target?.closest?.("button");
+      if (!btn) return;
 
-    const li = ev.target.closest("li");
-    const playerId = li?.getAttribute("data-player-id");
-    if (!playerId) return;
+      const li = ev.target.closest("li");
+      const playerId = li?.getAttribute("data-player-id");
+      if (!playerId) return;
 
-    const action = btn.getAttribute("data-action");
-    if (!currentMatchId || !teamId) return;
+      const action = btn.getAttribute("data-action");
+      if (!currentMatchId || !teamId) return;
 
-    const playerRef = doc(db, "matches", currentMatchId, "teams", teamId, "players", playerId);
+      const playerRef = doc(db, "matches", currentMatchId, "teams", teamId, "players", playerId);
 
-    if (action === "delete") {
-      const ok = confirm("この選手を削除しますか？");
-      if (!ok) return;
-      try {
-        await deleteDoc(playerRef);
-      } catch (e) {
-        alert(`削除失敗\n${e.code}\n${e.message}`);
-        console.error(e);
+      if (action === "delete") {
+        const ok = confirm("この選手を削除しますか？");
+        if (!ok) return;
+        try {
+          await deleteDoc(playerRef);
+        } catch (e) {
+          alert(`削除失敗\n${e.code}\n${e.message}`);
+          console.error(e);
+        }
       }
-    }
 
-    if (action === "edit") {
-      const p = players.find((x) => x.id === playerId);
-      const name = prompt("名前:", p?.name || "") ?? null;
-      if (name === null) return;
-      const number = prompt("背番号:", p?.number || "") ?? null;
-      if (number === null) return;
-      const email = prompt("メール（任意）:", p?.email || "") ?? null;
-      if (email === null) return;
+      if (action === "edit") {
+        const p = players.find((x) => x.id === playerId);
+        const name = prompt("名前:", p?.name || "") ?? null;
+        if (name === null) return;
+        const number = prompt("背番号:", p?.number || "") ?? null;
+        if (number === null) return;
 
-      try {
-        await updateDoc(playerRef, {
-          name: name.trim(),
-          number: number.trim(),
-          email: normalizeEmail(email),
-          updatedAt: serverTimestamp(),
-        });
-      } catch (e) {
-        alert(`編集失敗\n${e.code}\n${e.message}`);
-        console.error(e);
+        try {
+          await updateDoc(playerRef, {
+            name: name.trim(),
+            number: number.trim(),
+            updatedAt: serverTimestamp(),
+          });
+        } catch (e) {
+          alert(`編集失敗\n${e.code}\n${e.message}`);
+          console.error(e);
+        }
       }
-    }
-  }, { once: true }); // 連続addを防ぐ（snapshot更新ごとに付くため）
+    },
+    { once: true }
+  );
 }
 
-// 選手追加ボタン
 addPlayerBtn?.addEventListener("click", async () => {
   const user = auth.currentUser;
   if (!user) return alert("ログインしてください。");
   if (!currentMatchId || !teamId) return alert("試合を選択してください。");
-
   await addPlayer(currentMatchId, teamId);
 });
 
 // ======================
 // Events（得点/キャナハン/ブロック + 得点時アシスト）
-// 設計：matches/{matchId}/events/{eventId}
+// matches/{matchId}/events/{eventId}
 // ======================
 function eventsColRef(matchId) {
   return collection(db, "matches", matchId, "events");
@@ -580,12 +627,6 @@ async function recordEvent(type) {
   if (!scorerId) return alert("選手を選択してください。");
 
   const assistId = assistSelectEl?.value || "";
-
-  // type別バリデーション
-  if (type !== "goal" && assistId) {
-    // ブロック/キャナハンにアシストは不要なので無視（UIは任意）
-  }
-
   const timeMs = currentTimerMs();
 
   try {
@@ -606,13 +647,13 @@ async function recordEvent(type) {
 }
 
 function subscribeEvents(matchId) {
-  // 最新順（時刻が同じ場合は作成順に近い挙動になる）
   const qref = query(eventsColRef(matchId), orderBy("timeMs", "desc"));
 
   unsubscribeEvents = onSnapshot(
     qref,
     async (snap) => {
       const events = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      updateScoreFromEvents(events);
       await renderEvents(events);
     },
     (err) => {
@@ -622,10 +663,20 @@ function subscribeEvents(matchId) {
   );
 }
 
+function updateScoreFromEvents(events) {
+  // goal と callahan を「得点」としてカウント
+  // callahan が得点扱いでない運用なら、ここから外してください。
+  const isPoint = (ev) => ev.type === "goal" || ev.type === "callahan";
+
+  const my = events.filter((ev) => isPoint(ev) && ev.teamId === teamId).length;
+  const opp = events.filter((ev) => isPoint(ev) && ev.teamId !== teamId).length;
+
+  updateScoreUI(my, opp);
+}
+
 async function getPlayerLabel(playerId) {
   if (!currentMatchId || !teamId) return playerId;
 
-  // 自チームのプレイヤーラベルを優先（対戦相手の選手名まで表示したい場合は設計拡張が必要）
   try {
     const pSnap = await getDoc(doc(db, "matches", currentMatchId, "teams", teamId, "players", playerId));
     if (!pSnap.exists()) return playerId;
@@ -666,7 +717,6 @@ async function renderEvents(events) {
     scoreListEl.appendChild(li);
   }
 
-  // クリックイベント（編集/削除）
   scoreListEl.onclick = async (e) => {
     const btn = e.target?.closest?.("button");
     if (!btn) return;
@@ -690,8 +740,6 @@ async function renderEvents(events) {
     }
 
     if (action === "edit") {
-      // 最低限：時間（mm:ss）と、得点者/アシストの再設定をpromptで対応
-      // UIを本格化する場合はモーダル/フォーム推奨。
       const ev0 = events.find((x) => x.id === eventId);
       if (!ev0) return;
 
@@ -704,27 +752,13 @@ async function renderEvents(events) {
       const mmss = parseMMSS(newTime);
       if (mmss == null) return alert("時間は mm:ss 形式で入力してください（例：02:15）。");
 
-      // 得点者/アシストはIDを入力させると辛いので、現状は「現在の選択値」を使えるようにする
-      // （必要なら後でUI化）
-      const scorerId = prompt("得点者（playerId）※変更しない場合は空:", "");
-      if (scorerId === null) return;
-      const assistId = prompt("アシスト（playerId）※任意、変更しない場合は空:", "");
-      if (assistId === null) return;
-
       const payload = {
         type: newType.trim(),
         timeMs: mmss,
         updatedAt: serverTimestamp(),
       };
-      if (scorerId.trim()) payload.scorerPlayerId = scorerId.trim();
-      if (payload.type === "goal") {
-        // goalのみアシストを保持
-        if (assistId.trim()) payload.assistPlayerId = assistId.trim();
-        else payload.assistPlayerId = ""; // 明示的に消す
-      } else {
-        payload.assistPlayerId = "";
-      }
 
+      // ルール上、誰でもevents更新できる設計にしていない場合はここで弾かれます。
       try {
         await updateDoc(eventRef, payload);
       } catch (err) {
@@ -744,19 +778,8 @@ function parseMMSS(s) {
   return (mm * 60 + ss) * 1000;
 }
 
-function escapeHtml(str) {
-  return String(str || "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
-}
-
 // ======================
 // joinCode 参加（予備導線）
-// ※ルールが inviteId 必須の場合、この導線は「必ず弾かれます」。
-//   運用するならルールを緩めるか、joinCodeでinviteを発行する設計に切替が必要。
 // ======================
 async function findMatchIdByJoinCode(code) {
   const q = query(collection(db, "matches"), where("joinCode", "==", code));
@@ -777,12 +800,10 @@ joinBtn?.addEventListener("click", async () => {
     const matchId = await findMatchIdByJoinCode(code);
     if (!matchId) return alert("joinCode が見つかりません。");
 
-    // 重要：あなたの現行ルールだと inviteId 必須のため、この書き込みは拒否されます。
-    // joinCode導線を残すなら、ルール or データ設計の見直しが必要です。
     await setDoc(doc(db, "matches", matchId, "memberships", user.uid), {
       role: "team",
       teamName,
-      inviteId: "joinCode", // ルール回避用（運用上の意味付けが必要）
+      inviteId: "joinCode",
       createdAt: serverTimestamp(),
     });
 
@@ -860,7 +881,6 @@ createMatchBtn?.addEventListener("click", async () => {
   const joinCode = randomJoinCode(8);
 
   try {
-    // matches を作成
     const matchRef = await addDoc(collection(db, "matches"), {
       title,
       status: "scheduled",
@@ -869,7 +889,6 @@ createMatchBtn?.addEventListener("click", async () => {
       createdAt: serverTimestamp(),
     });
 
-    // 管理者自身をこの試合の admin として membership 作成
     await setDoc(doc(db, "matches", matchRef.id, "memberships", user.uid), {
       role: "admin",
       createdAt: serverTimestamp(),
@@ -894,22 +913,21 @@ onAuthStateChanged(auth, async (user) => {
   if (!user) {
     statusEl.textContent = "";
     logoutBtn.style.display = "none";
-    signupBtn.style.display = "inline-block"; // ログアウト時のみ表示（ToDo）
+    signupBtn.style.display = "inline-block";
     adminSection.style.display = "none";
     matchesSection.style.display = "none";
     joinSection.style.display = "none";
     teamSection.style.display = "none";
     scoreSection.style.display = "none";
     matchesList.innerHTML = "";
+    updateScoreUI(0, 0);
     return;
   }
 
-  // ログイン中表示
   statusEl.textContent = `ログイン中: ${user.email}`;
   logoutBtn.style.display = "inline-block";
-  signupBtn.style.display = "none"; // ログインしたら消す（ToDo）
+  signupBtn.style.display = "none";
 
-  // 管理者表示
   try {
     const ok = await isGlobalAdmin(user.uid);
     adminSection.style.display = ok ? "block" : "none";
@@ -918,27 +936,15 @@ onAuthStateChanged(auth, async (user) => {
     console.error("admin check failed:", e);
   }
 
-  // 試合一覧を表示
   matchesSection.style.display = "block";
   joinSection.style.display = "block";
-
-  // 入室前は隠す
   teamSection.style.display = "none";
   scoreSection.style.display = "none";
 
-  // 招待試合一覧を描画
   try {
     await renderMatchesFromInvites(user);
   } catch (e) {
     alert(`招待試合表示エラー\n${e.code}\n${e.message}`);
     console.error(e);
-  }
-
-  // 以前の試合に戻る（任意）
-  const saved = sessionStorage.getItem("currentMatchId");
-  if (saved) {
-    // savedが消えていたら黙って無視
-    // 明示的に戻りたいならここをONにする
-    // await enterMatch(saved);
   }
 });
