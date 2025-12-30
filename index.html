@@ -1,3 +1,4 @@
+<!-- index.html（全文置換：UID確認フロー追加） -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -5,6 +6,23 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Wanabee Players Stats</title>
   <link rel="stylesheet" href="style.css" />
+
+  <!-- 追加：disabled時の最低限の見た目（style.cssを触らずに済ませる） -->
+  <style>
+    button:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+    .hint {
+      opacity: 0.85;
+    }
+    .error-hint {
+      color: #b00020;
+    }
+    .ok-btn {
+      opacity: 1 !important;
+    }
+  </style>
 </head>
 <body>
   <h1>Wanabee Players Stats</h1>
@@ -20,6 +38,32 @@
       <button id="logout-btn" class="ghost" style="display:none;">ログアウト</button>
     </div>
     <p id="login-status" class="hint"></p>
+  </section>
+
+  <!-- 追加：UID確認（初回のみ） -->
+  <section id="uid-verify-section" style="display:none;">
+    <h2>UID確認</h2>
+
+    <p class="hint">
+      表示中のUIDを、入力欄に<strong>正確に</strong>入力してください（大文字小文字を含めて一致が必要です）。
+    </p>
+
+    <div class="row" style="align-items:center; gap:12px;">
+      <div style="flex:1;">
+        <div class="hint" style="margin-bottom:4px;">表示中のUID</div>
+        <div id="uid-display" style="font-weight:700; font-size:16px; word-break:break-all;"></div>
+      </div>
+    </div>
+
+    <div class="row" style="margin-top:12px;">
+      <input type="text" id="uid-input" placeholder="ここにUIDを入力" autocomplete="off" style="flex:1;" />
+      <button id="uid-verify-btn" disabled>認証</button>
+    </div>
+
+    <!-- Hint（不一致時のみ表示） -->
+    <p id="uid-hint" class="hint error-hint" style="display:none;">
+      表示中の文字列と一致すると認証できます
+    </p>
   </section>
 
   <!-- 管理者：試合作成（管理者のみ表示） -->
@@ -168,4 +212,3 @@
   <script type="module" src="app.js"></script>
 </body>
 </html>
-
