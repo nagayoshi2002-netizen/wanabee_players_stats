@@ -6,12 +6,27 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Wanabee Players Stats</title>
   <link rel="stylesheet" href="style.css" />
+  <style>
+    /* 最低限の見た目（style.cssがある前提で、足りない分だけ補助） */
+    .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+    .hint { opacity:.8; font-size: 0.9em; }
+    .ghost { opacity:.85; }
+    .timer { font-size: 32px; font-weight: 700; }
+    .card { max-width: 720px; margin: 16px auto; padding: 16px; border: 1px solid #ddd; border-radius: 12px; }
+    .ok-btn { filter: saturate(1.2); font-weight: 700; }
+    textarea { padding: 8px; }
+    input, select { padding: 8px; }
+    button { padding: 8px 12px; cursor:pointer; }
+    button[disabled] { opacity: .45; cursor: not-allowed; }
+    hr { margin: 16px 0; }
+    ul { padding-left: 18px; }
+  </style>
 </head>
 <body>
   <h1>Wanabee Players Stats</h1>
 
   <!-- ログイン -->
-  <section id="login-section">
+  <section id="login-section" class="card">
     <h2>ログイン</h2>
     <input type="email" id="email" placeholder="メールアドレス" autocomplete="email" />
     <input type="password" id="password" placeholder="パスワード" autocomplete="current-password" />
@@ -23,82 +38,109 @@
     <p id="login-status" class="hint"></p>
   </section>
 
-  <!-- 代表者：大会選択 & 選手登録（ログイン後表示） -->
-  <section id="rep-tournament-section" style="display:none;">
-    <h2>代表者：大会の選手登録</h2>
+  <!-- UID確認（初回のみ） -->
+  <section id="uid-verify-section" class="card" style="display:none;">
+    <h2>UID確認</h2>
+    <p class="hint">
+      表示中のUIDを、入力欄に正確に入力してください（大文字小文字を区別します）。
+    </p>
+
+    <div class="hint">表示中のUID</div>
+    <div id="uid-display" style="font-weight:800; font-size: 18px; margin: 6px 0 10px;"></div>
+
+    <input id="uid-input" type="text" placeholder="ここにUIDを入力" style="width:100%; max-width:680px;" />
+
+    <p id="uid-hint" class="hint" style="display:none; color:#c00; margin-top:8px;">
+      表示中の文字列と一致すると認証できます
+    </p>
+
+    <div class="row" style="margin-top:10px;">
+      <button id="uid-verify-btn" disabled>認証</button>
+    </div>
+  </section>
+
+  <!-- 代表者ホーム -->
+  <section id="rep-home-section" class="card" style="display:none;">
+    <h2>代表者メニュー</h2>
+    <div class="row">
+      <button id="open-player-registry-btn">選手登録（大会マスタ）</button>
+      <button id="open-matches-btn" class="ghost">参加試合一覧</button>
+    </div>
+    <p class="hint" style="margin-top:10px;">
+      「選手登録（大会マスタ）」は大会単位で名簿を作成します。試合ごとに反映したい場合は、各試合の「選手管理」からコピーしてください。
+    </p>
+  </section>
+
+  <!-- 代表者：選手登録（大会マスタ） -->
+  <section id="player-registry-section" class="card" style="display:none;">
+    <h2>代表者：選手登録（大会マスタ）</h2>
 
     <div class="row">
-      <label style="min-width:120px;">大会を選択</label>
-      <select id="rep-tournament-select">
-        <option value="">（大会を選択）</option>
-      </select>
+      <button id="back-to-home-btn" class="ghost">← メニューに戻る</button>
+      <button id="go-to-matches-btn" class="ghost">参加試合一覧へ</button>
     </div>
 
-    <p class="hint">
-      大会を選択すると、その大会の「自チーム（あなたのUID）」の選手マスタに登録されます。
-    </p>
+    <hr />
+
+    <h3>大会ID（tournamentId）を指定</h3>
+    <p class="hint">例：2025spring、wuc2026、など（あなたが決めた文字列でOK）</p>
+    <div class="row">
+      <input type="text" id="registry-tournament-id" placeholder="tournamentId を入力" style="min-width:280px;" />
+      <button id="load-registry-btn">読み込む</button>
+    </div>
+    <p id="registry-context" class="hint"></p>
+
+    <hr />
 
     <h3>個別追加</h3>
     <div class="row">
-      <input type="text" id="rep-player-number" placeholder="背番号（例：12）" />
-      <input type="text" id="rep-player-name" placeholder="名前（例：山田 太郎）" />
-      <button id="rep-add-player-btn">追加</button>
+      <input type="text" id="registry-player-number" placeholder="背番号（例：12）" />
+      <input type="text" id="registry-player-name" placeholder="選手名（例：山田 太郎）" style="min-width:240px;" />
+      <button id="registry-add-player-btn">追加</button>
     </div>
 
     <h3>一括追加（背番号,名前）</h3>
-    <textarea id="rep-bulk-players" rows="6" style="width:100%;" placeholder="例：
+    <textarea id="registry-bulk" rows="6" style="width:100%;" placeholder="例：
 12,山田太郎
 7,佐藤花子
 "></textarea>
     <div class="row">
-      <button id="rep-bulk-add-btn">一括追加</button>
+      <button id="registry-bulk-add-btn">一括追加</button>
     </div>
 
-    <h3>登録済み（この大会 / 自チーム）</h3>
-    <ul id="rep-players-list"></ul>
-
     <hr />
+
+    <h3>登録済み（編集・削除）</h3>
+    <div class="row">
+      <input type="text" id="registry-search" placeholder="検索（背番号/名前）" style="min-width:240px;" />
+      <button id="registry-clear-search-btn" class="ghost">クリア</button>
+    </div>
+    <ul id="registry-players-list"></ul>
   </section>
 
   <!-- 管理者：試合作成（管理者のみ表示） -->
-  <section id="admin-section" style="display:none;">
+  <section id="admin-section" class="card" style="display:none;">
     <h2>管理者：試合作成</h2>
 
+    <p class="hint">「チーム名×2」「代表者メール×2」を入力すると、試合作成＋招待（invites）を自動で作ります。</p>
+
     <div class="row">
-      <input type="text" id="match-title" placeholder="試合名（例：Wanabee A vs Wanabee B）">
+      <input type="text" id="team-a-name" placeholder="チーム名A（例：Wanabee A）" style="min-width:220px;" />
+      <input type="text" id="team-b-name" placeholder="チーム名B（例：Wanabee B）" style="min-width:220px;" />
+    </div>
+
+    <div class="row">
+      <input type="email" id="team-a-email" placeholder="チームA代表者メール" style="min-width:260px;" />
+      <input type="email" id="team-b-email" placeholder="チームB代表者メール" style="min-width:260px;" />
       <button id="create-match-btn">試合を作成</button>
-    </div>
-
-    <p class="hint">
-      試合名は「A vs B」形式で入力してください。
-    </p>
-
-    <h3>大会（tournamentId）を必須で設定</h3>
-
-    <div class="row">
-      <label style="min-width:120px;">既存大会</label>
-      <select id="admin-tournament-select">
-        <option value="">（選択してください）</option>
-        <option value="__new__">＋ 新規大会を作成</option>
-      </select>
-    </div>
-
-    <div id="admin-new-tournament-box" style="display:none; margin-top:8px;">
-      <div class="row">
-        <input type="text" id="admin-new-tournament-id" placeholder="新規 tournamentId（例：wuc2026）">
-        <input type="text" id="admin-new-tournament-name" placeholder="大会表示名（例：WUC 2026）">
-      </div>
-      <p class="hint">
-        tournamentId は保存時に小文字化されます。英数字・ハイフン・アンダースコア推奨。
-      </p>
     </div>
 
     <p id="admin-info" class="hint"></p>
   </section>
 
   <!-- チーム：joinCode参加（予備導線） -->
-  <section id="join-section" style="display:none;">
-    <h2>チーム：試合に参加</h2>
+  <section id="join-section" class="card" style="display:none;">
+    <h2>チーム：試合に参加（予備）</h2>
     <div class="row">
       <input type="text" id="join-code" placeholder="joinCode（例：ABCD1234）">
       <input type="text" id="team-name" placeholder="チーム名（例：Wanabee A）">
@@ -108,14 +150,14 @@
   </section>
 
   <!-- 参加できる試合（招待から表示） -->
-  <section id="matches-section" style="display:none;">
+  <section id="matches-section" class="card" style="display:none;">
     <h2>参加できる試合</h2>
     <ul id="matches-list"></ul>
   </section>
 
   <!-- チーム管理者：選手管理（大会マスタ/試合選手） -->
-  <section id="team-admin-section" style="display:none;">
-    <h2>チーム管理者：選手管理</h2>
+  <section id="team-admin-section" class="card" style="display:none;">
+    <h2>チーム管理者：選手管理（試合単位）</h2>
 
     <div class="row">
       <button id="back-to-matches-from-admin-btn" class="ghost">← 試合選択に戻る</button>
@@ -183,10 +225,10 @@
   </section>
 
   <!-- スコア入力 -->
-  <section id="team-section" style="display:none;">
-    <h2>選手登録</h2>
+  <section id="team-section" class="card" style="display:none;">
+    <h2>選手登録（簡易）</h2>
     <p class="hint">
-      ここは簡易登録です。チーム管理者画面（選手管理）からの選手追加を推奨します。
+      ここは簡易登録です。代表者用の「選手登録（大会マスタ）」または「選手管理」からの追加を推奨します。
     </p>
     <div class="row">
       <input type="text" id="player-name" placeholder="名前（例：山田 太郎）" />
@@ -195,7 +237,7 @@
     </div>
   </section>
 
-  <section id="score-section" style="display:none;">
+  <section id="score-section" class="card" style="display:none;">
     <h2>試合入力</h2>
 
     <div class="row">
