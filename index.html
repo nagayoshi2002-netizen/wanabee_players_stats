@@ -1,4 +1,4 @@
-<!-- index.html（全文置換） -->
+<!-- index.html（全文置換：管理者の試合作成に「大会種別（プルダウン＋新規作成）」を追加 / 代表者の大会マスタも「選択 or 新規作成」に変更 / UID確認UIは指定スニペットを維持） -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -20,6 +20,8 @@
     button[disabled] { opacity: .45; cursor: not-allowed; }
     hr { margin: 16px 0; }
     ul { padding-left: 18px; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+    .pill { display:inline-block; padding:2px 8px; border-radius:999px; background:#f2f2f2; font-size:.85em; }
   </style>
 </head>
 <body>
@@ -38,7 +40,7 @@
     <p id="login-status" class="hint"></p>
   </section>
 
-  <!-- UID確認（初回のみ） -->
+  <!-- UID確認（初回のみ） ※ユーザー指定スニペット（最適化してもDOMは維持） -->
   <section id="uid-verify-section" class="card" style="display:none;">
     <h2>UID確認</h2>
     <p class="hint">
@@ -46,7 +48,7 @@
     </p>
 
     <div class="hint">表示中のUID</div>
-    <div id="uid-display" style="font-weight:800; font-size: 18px; margin: 6px 0 10px;"></div>
+    <div id="uid-display" class="mono" style="font-weight:800; font-size: 18px; margin: 6px 0 10px;"></div>
 
     <input id="uid-input" type="text" placeholder="ここにUIDを入力" style="width:100%; max-width:680px;" />
 
@@ -82,10 +84,17 @@
 
     <hr />
 
-    <h3>大会ID（tournamentId）を指定</h3>
-    <p class="hint">例：2025spring、wuc2026、など（あなたが決めた文字列でOK）</p>
+    <h3>大会ID（tournamentId）を指定（選択 or 新規作成）</h3>
+    <p class="hint">
+      既存大会を選択するか、新規の tournamentId を入力して作成してください。保存・参照は <span class="pill">小文字</span> で行います。
+    </p>
+
     <div class="row">
-      <input type="text" id="registry-tournament-id" placeholder="tournamentId を入力" style="min-width:280px;" />
+      <select id="registry-tournament-select" style="min-width:280px;">
+        <option value="">（大会を選択）</option>
+      </select>
+      <span class="hint">または</span>
+      <input type="text" id="registry-tournament-new" placeholder="新規 tournamentId（例：wuc2026）" style="min-width:280px;" />
       <button id="load-registry-btn">読み込む</button>
     </div>
     <p id="registry-context" class="hint"></p>
@@ -122,17 +131,38 @@
   <section id="admin-section" class="card" style="display:none;">
     <h2>管理者：試合作成</h2>
 
-    <p class="hint">「チーム名×2」「代表者メール×2」を入力すると、試合作成＋招待（invites）を自動で作ります。</p>
+    <p class="hint">
+      「チーム名×2」「代表者メール×2」「大会種別（選択 or 新規作成）」を入力すると、試合作成＋招待（invites）を自動で作ります。
+      <br />※代表者メールは、代表者が「登録＋UID確認」完了済みである必要があります（users に emailLower がある状態）。
+    </p>
 
+    <h3>試合（表示用）</h3>
     <div class="row">
       <input type="text" id="team-a-name" placeholder="チーム名A（例：Wanabee A）" style="min-width:220px;" />
+      <span style="font-weight:700;">vs</span>
       <input type="text" id="team-b-name" placeholder="チーム名B（例：Wanabee B）" style="min-width:220px;" />
     </div>
 
+    <h3>代表者メール</h3>
     <div class="row">
       <input type="email" id="team-a-email" placeholder="チームA代表者メール" style="min-width:260px;" />
       <input type="email" id="team-b-email" placeholder="チームB代表者メール" style="min-width:260px;" />
-      <button id="create-match-btn">試合を作成</button>
+    </div>
+
+    <h3>大会種別（tournamentId）※必須</h3>
+    <p class="hint">
+      既存大会を選択するか、新規 tournamentId を入力してください。保存・参照は <span class="pill">小文字</span> で行います。
+    </p>
+    <div class="row">
+      <select id="admin-tournament-select" style="min-width:280px;">
+        <option value="">（大会を選択）</option>
+      </select>
+      <span class="hint">または</span>
+      <input type="text" id="admin-tournament-new" placeholder="新規 tournamentId（例：wuc2026）" style="min-width:280px;" />
+    </div>
+
+    <div class="row" style="margin-top:10px;">
+      <button id="create-match-btn">作成</button>
     </div>
 
     <p id="admin-info" class="hint"></p>
