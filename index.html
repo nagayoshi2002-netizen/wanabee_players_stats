@@ -1,4 +1,4 @@
-<!-- index.html（全文置換：UID確認フロー追加） -->
+<!-- index.html（全文置換：管理者の試合作成UIを「チーム名×2＋メール×2」に変更） -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -13,15 +13,11 @@
       opacity: 0.55;
       cursor: not-allowed;
     }
-    .hint {
-      opacity: 0.85;
-    }
-    .error-hint {
-      color: #b00020;
-    }
-    .ok-btn {
-      opacity: 1 !important;
-    }
+    .hint { opacity: 0.85; }
+    .error-hint { color: #b00020; }
+    .ok-btn { opacity: 1 !important; }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    @media (max-width: 720px) { .grid2 { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
@@ -40,7 +36,7 @@
     <p id="login-status" class="hint"></p>
   </section>
 
-  <!-- 追加：UID確認（初回のみ） -->
+  <!-- UID確認（初回のみ） -->
   <section id="uid-verify-section" style="display:none;">
     <h2>UID確認</h2>
 
@@ -60,7 +56,6 @@
       <button id="uid-verify-btn" disabled>認証</button>
     </div>
 
-    <!-- Hint（不一致時のみ表示） -->
     <p id="uid-hint" class="hint error-hint" style="display:none;">
       表示中の文字列と一致すると認証できます
     </p>
@@ -70,14 +65,33 @@
   <section id="admin-section" style="display:none;">
     <h2>管理者：試合作成</h2>
 
-    <div class="row">
-      <input type="text" id="match-title" placeholder="試合名（例：Wanabee A vs Wanabee B）">
-      <button id="create-match-btn">試合を作成</button>
+    <p class="hint">
+      チーム名と、各チーム代表者のメールアドレスを入力してください。試合作成と同時に招待（invites）を2件作成します。
+    </p>
+
+    <div class="grid2" style="margin-top:10px;">
+      <div>
+        <div class="hint" style="margin-bottom:4px;">チームA（名前）</div>
+        <input type="text" id="team-a-name" placeholder="例：Wanabee A">
+      </div>
+      <div>
+        <div class="hint" style="margin-bottom:4px;">チームB（名前）</div>
+        <input type="text" id="team-b-name" placeholder="例：Wanabee B">
+      </div>
+
+      <div>
+        <div class="hint" style="margin-bottom:4px;">チームA（代表者メール）</div>
+        <input type="email" id="team-a-email" placeholder="例：a@example.com" autocomplete="email">
+      </div>
+      <div>
+        <div class="hint" style="margin-bottom:4px;">チームB（代表者メール）</div>
+        <input type="email" id="team-b-email" placeholder="例：b@example.com" autocomplete="email">
+      </div>
     </div>
 
-    <p class="hint">
-      試合名は「A vs B」形式で入力してください。
-    </p>
+    <div class="row" style="margin-top:12px;">
+      <button id="create-match-btn">試合を作成</button>
+    </div>
 
     <p id="admin-info" class="hint"></p>
   </section>
