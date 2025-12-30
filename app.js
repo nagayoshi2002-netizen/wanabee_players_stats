@@ -1,4 +1,4 @@
-// app.js（全文置換：管理者の試合作成を「チーム名×2＋メール×2」で一括作成→invites2件）
+// app.js（全文置換：UID確認の比較を (1) auth.currentUser.uid 毎回参照 に修正）
 // このファイルを丸ごと置き換えてください
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-app.js";
@@ -1230,7 +1230,6 @@ async function findUidByEmailLower(emailLower) {
   const q = query(usersCol(), where("emailLower", "==", emailLower));
   const snap = await getDocs(q);
   if (snap.empty) return null;
-  // uid は document id
   return snap.docs[0].id;
 }
 
@@ -1253,12 +1252,10 @@ createMatchBtn?.addEventListener("click", async () => {
   const title = `${teamAName} vs ${teamBName}`;
   const joinCode = randomJoinCode(8);
 
-  // 二重送信防止（軽く）
   if (createMatchBtn) createMatchBtn.disabled = true;
   if (adminInfoEl) adminInfoEl.textContent = "作成中...";
 
   try {
-    // 1) 先に email -> uid 解決（見つからない場合は試合だけ作らない）
     const uidA = await findUidByEmailLower(teamAEmail);
     if (!uidA) {
       throw new Error(`チームAのメールが users に見つかりません（${teamAEmail}）。先にチーム代表者が登録/UID確認を完了してください。`);
@@ -1268,7 +1265,6 @@ createMatchBtn?.addEventListener("click", async () => {
       throw new Error(`チームBのメールが users に見つかりません（${teamBEmail}）。先にチーム代表者が登録/UID確認を完了してください。`);
     }
 
-    // 2) match 作成（ここで matchId が確定）
     const matchDocRef = await addDoc(matchesCol(), {
       title,
       status: "scheduled",
@@ -1278,19 +1274,16 @@ createMatchBtn?.addEventListener("click", async () => {
       createdAt: serverTimestamp(),
     });
 
-    // 3) 管理者自身を admin membership
     await setDoc(membershipRef(matchDocRef.id, user.uid), {
       role: "admin",
       createdAt: serverTimestamp(),
     });
 
-    // 4) joinCodes 登録（予備導線）
     await setDoc(joinCodeRef(joinCode), {
       matchId: matchDocRef.id,
       createdAt: serverTimestamp(),
     });
 
-    // 5) invites を2件作成（メール解決した uid を入れる）
     await addDoc(invitesCol(), {
       teamUid: uidA,
       matchId: matchDocRef.id,
@@ -1311,12 +1304,6 @@ createMatchBtn?.addEventListener("click", async () => {
     const msg = `作成完了：${title}\nmatchId=${matchDocRef.id}\njoinCode=${joinCode}\n招待：${teamAEmail}, ${teamBEmail}`;
     if (adminInfoEl) adminInfoEl.textContent = msg;
     alert(`試合作成OK\n${title}\njoinCode: ${joinCode}\n※チーム側はログイン後に試合一覧へ反映されます。`);
-
-    // 入力欄を軽くクリア（好みで削除可）
-    // teamANameEl && (teamANameEl.value = "");
-    // teamBNameEl && (teamBNameEl.value = "");
-    // teamAEmailEl && (teamAEmailEl.value = "");
-    // teamBEmailEl && (teamBEmailEl.value = "");
   } catch (e) {
     const msg = e?.message || `${e}`;
     alert(`試合作成失敗\n${msg}`);
@@ -1340,7 +1327,10 @@ function showOnlyUidVerify(user) {
 
   uidVerifySection && (uidVerifySection.style.display = "block");
 
-  if (uidDisplayEl) uidDisplayEl.textContent = user.uid;
+  // 表示側は「今ログインしているユーザー」を明示して更新
+  const current = auth.currentUser;
+  const uidToShow = current?.uid || user?.uid || "";
+  if (uidDisplayEl) uidDisplayEl.textContent = uidToShow;
 
   if (uidInputEl) uidInputEl.value = "";
   if (uidHintEl) uidHintEl.style.display = "none";
@@ -1352,11 +1342,13 @@ function showOnlyUidVerify(user) {
   if (!uidVerifyBound) {
     uidVerifyBound = true;
 
+    // ★修正ポイント(1)：expected を毎回 auth.currentUser.uid から参照する
     uidInputEl?.addEventListener("input", () => {
-      const expected = String(user.uid);
+      const expected = String(auth.currentUser?.uid || "");
       const got = String(uidInputEl?.value || "").trim();
 
-      const ok = got.length > 0 && got === expected;
+      const ok = expected.length > 0 && got.length > 0 && got === expected;
+
       if (uidVerifyBtn) {
         uidVerifyBtn.disabled = !ok;
         if (ok) uidVerifyBtn.classList.add("ok-btn");
@@ -1369,30 +1361,38 @@ function showOnlyUidVerify(user) {
       }
     });
 
+    // ★修正ポイント(1)：click でも currentUser を都度取得して検証/書込み
     uidVerifyBtn?.addEventListener("click", async () => {
-      const expected = String(user.uid);
+      const currentUser = auth.currentUser;
+      if (!currentUser) return alert("ログイン状態を確認できません。もう一度ログインしてください。");
+
+      const expected = String(currentUser.uid);
       const got = String(uidInputEl?.value || "").trim();
       if (got !== expected) return;
 
       try {
         uidVerifyBtn.disabled = true;
 
-        const email = user.email || "";
+        const email = currentUser.email || "";
         const emailLower = normalizeEmail(email);
 
-        await setDoc(userRef(user.uid), {
-          uid: user.uid,
-          email,
-          emailLower,
-          verifiedAt: serverTimestamp(),
-          createdAt: serverTimestamp(),
-        }, { merge: true });
+        await setDoc(
+          userRef(currentUser.uid),
+          {
+            uid: currentUser.uid,
+            email,
+            emailLower,
+            verifiedAt: serverTimestamp(),
+            createdAt: serverTimestamp(),
+          },
+          { merge: true }
+        );
 
-        await showPostLoginUI(user);
+        await showPostLoginUI(currentUser);
       } catch (e) {
         alert(`ユーザー登録（users）失敗\n${e.code || ""}\n${e.message || e}\n\n通信環境・Firestoreルールをご確認ください。`);
         console.error(e);
-        const ok = String(uidInputEl?.value || "").trim() === String(user.uid);
+        const ok = String(uidInputEl?.value || "").trim() === String(auth.currentUser?.uid || "");
         if (uidVerifyBtn) uidVerifyBtn.disabled = !ok;
       }
     });
