@@ -1,4 +1,4 @@
-// app.js（全文置換：タイマー共有=matches/{matchId}.timer、重複表示/タイマー欠落の根本原因を解消、スクショレイアウト適用）
+// app.js（全文置換：試合記録は常に見える（UID不一致でも teamName で左右判定）、試合記録の編集ボタン非表示（削除のみ）、タイマー更新はRules準拠、timeMsはint化）
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-app.js";
 import {
   getAuth,
@@ -603,17 +603,19 @@ async function updateSharedTimer(partial) {
 
   try {
     setTimerShareStatus("");
+
+    // Firestore Rules 準拠：timer は status/baseMs/startedAt/updatedBy のみ
     const next = {
       status: partial.status ?? matchTimer.status ?? "stopped",
       baseMs: partial.baseMs ?? Number(matchTimer.baseMs || 0),
       startedAt: partial.startedAt ?? matchTimer.startedAt ?? null,
-      updatedAt: serverTimestamp(),
-      updatedBy: user.uid,
+      updatedBy: String(user.uid),
     };
+
     await updateDoc(matchRef(currentMatchId), { timer: next });
   } catch (e) {
     console.error("timer update failed:", e);
-    setTimerShareStatus("タイマー開始の共有に失敗", true);
+    setTimerShareStatus("タイマー共有に失敗", true);
     alert(`タイマー共有に失敗\n${e.code || ""}\n${e.message || e}`);
   }
 }
@@ -730,7 +732,7 @@ async function recordEvent(type) {
   if (!scorerId) return alert("選手を選択してください。");
 
   const assistId = String(assistSelectEl?.value || "");
-  const timeMs = timerMsNow();
+  const timeMs = Math.trunc(timerMsNow()); // Rules: timeMs is int
 
   const teamUid = user.uid;
   const teamName = String(currentMembership?.teamName || "");
@@ -753,7 +755,7 @@ async function recordEvent(type) {
   }
 }
 
-function canEditEvent(ev) {
+function canDeleteEvent(ev) {
   const user = auth.currentUser;
   if (!user) return false;
   if (isAdminUser) return true;
@@ -776,67 +778,78 @@ async function subscribeEvents(matchId) {
   );
 }
 
+// 左右判定：UID優先 → teamName でフォールバック
+function resolveSide(ev) {
+  const evTeamId = String(ev?.teamId || "");
+  const evTeamName = String(ev?.teamName || "").trim();
+
+  if (evTeamId && leftTeam.uid && evTeamId === leftTeam.uid) return "left";
+  if (evTeamId && rightTeam.uid && evTeamId === rightTeam.uid) return "right";
+
+  // フォールバック（既存試合・UID欠落/不一致を救済）
+  if (evTeamName && leftTeam.name && evTeamName === String(leftTeam.name).trim()) return "left";
+  if (evTeamName && rightTeam.name && evTeamName === String(rightTeam.name).trim()) return "right";
+
+  return "unknown";
+}
+
 async function renderEvents() {
   if (!eventListEl) return;
 
-  // 一括描画（重複の根本原因：append運用をやめ、毎回全文置換）
+  // 一括描画（append運用をやめ、毎回全文置換）
   const rows = [];
 
   for (const ev of latestEvents) {
     const t = msToMMSS(ev.timeMs || 0);
-    const side = ev.teamId === leftTeam.uid ? "left" : (ev.teamId === rightTeam.uid ? "right" : "unknown");
+    const side = resolveSide(ev);
 
+    // scorer/assist label
     const scorerLabel = await getPlayerLabelFromMatchPlayers(ev.teamId, ev.scorerPlayerId || "");
-    const assistLabel = ev.assistPlayerId ? await getPlayerLabelFromMatchPlayers(ev.teamId, ev.assistPlayerId) : "";
+    const assistLabel = ev.assistPlayerId
+      ? await getPlayerLabelFromMatchPlayers(ev.teamId, ev.assistPlayerId)
+      : "";
 
-    // 表示ルール：
-    // ・00:00 14 よしなが（時刻 背番号 名前）
-    // ・キャラハン時：下に（キャラハン）
-    // ・得点時：下に（アシスト：…） ※任意
     const mainLine = `${scorerLabel}`.trim() || "-";
     const subLine =
       ev.type === "callahan"
         ? "（キャラハン）"
         : (assistLabel ? `（アシスト：${assistLabel}）` : "");
 
-    const teamName = String(ev.teamName || (ev.teamId === leftTeam.uid ? leftTeam.name : ev.teamId === rightTeam.uid ? rightTeam.name : ev.teamId || ""));
+    const teamName = String(
+      ev.teamName ||
+      (ev.teamId === leftTeam.uid ? leftTeam.name : ev.teamId === rightTeam.uid ? rightTeam.name : ev.teamId || "")
+    ).trim();
 
-    const leftCell =
-      side === "left"
-        ? `<div class="ev-cell">
-             <div class="ev-main">${escapeHtml(mainLine)}</div>
-             <div class="ev-sub">${escapeHtml(subLine)}</div>
-           </div>`
-        : `<div class="ev-cell muted"> </div>`;
+    const teamTag = `<span class="ev-team">（${escapeHtml(teamName || "—")}）</span>`;
 
-    const rightCell =
-      side === "right"
-        ? `<div class="ev-cell">
-             <div class="ev-main">${escapeHtml(mainLine)}</div>
-             <div class="ev-sub">${escapeHtml(subLine)}</div>
-           </div>`
-        : `<div class="ev-cell muted"> </div>`;
+    // 左右セル（unknown でも必ず内容は表示する：unknown時は左側に寄せる）
+    const makeCell = (isMine) => `
+      <div class="ev-cell${isMine ? "" : " muted"}">
+        <div class="ev-main">${isMine ? escapeHtml(mainLine) : " "}</div>
+        <div class="ev-sub">${isMine ? escapeHtml(subLine) : " "}</div>
+        <div class="ev-teamline">${isMine ? teamTag : " "}</div>
+      </div>
+    `;
 
+    const leftIsMine = (side === "left") || (side === "unknown"); // unknownは左に寄せて必ず見えるようにする
+    const rightIsMine = (side === "right");
+
+    const leftCell = makeCell(leftIsMine);
+    const rightCell = makeCell(rightIsMine);
     const timeCell = `<div class="ev-time">${escapeHtml(t)}</div>`;
 
-    const actions = canEditEvent(ev)
+    // 要件：編集ボタンは非表示。削除のみ残す。
+    const actions = canDeleteEvent(ev)
       ? `<div class="ev-actions">
-           <button class="btn ghost mini" data-action="edit" data-id="${escapeHtml(ev.id)}">編集</button>
            <button class="btn ghost mini" data-action="delete" data-id="${escapeHtml(ev.id)}">削除</button>
          </div>`
       : `<div class="ev-actions muted"></div>`;
 
-    // チーム名は「誰でも見れる」前提で、各イベント行に内包（閲覧性重視）
-    // ※左/右どちらに出ても、チーム名は sub の末尾に薄く表示
-    const teamTag = `<span class="ev-team">（${escapeHtml(teamName)}）</span>`;
-    const withTeamTagLeft = side === "left" ? leftCell.replace("</div>\n           </div>", `</div>\n             <div class="ev-teamline">${teamTag}</div>\n           </div>`) : leftCell;
-    const withTeamTagRight = side === "right" ? rightCell.replace("</div>\n           </div>", `</div>\n             <div class="ev-teamline">${teamTag}</div>\n           </div>`) : rightCell;
-
     rows.push(`
       <div class="ev-row">
-        ${withTeamTagLeft}
+        ${leftCell}
         ${timeCell}
-        ${withTeamTagRight}
+        ${rightCell}
         ${actions}
       </div>
     `);
@@ -845,7 +858,7 @@ async function renderEvents() {
   eventListEl.innerHTML = rows.length ? rows.join("") : `<div class="hint">まだ記録がありません。</div>`;
 }
 
-// イベント操作は「1回だけ」委譲でバインド（重複バグ対策）
+// イベント操作は「1回だけ」委譲でバインド（削除のみ）
 eventListEl?.addEventListener("click", async (e) => {
   const btn = e.target?.closest?.("button");
   if (!btn) return;
@@ -857,48 +870,14 @@ eventListEl?.addEventListener("click", async (e) => {
   const ev0 = latestEvents.find((x) => x.id === id);
   if (!ev0) return;
 
-  if (!canEditEvent(ev0)) return;
-
-  const ref = eventRef(currentMatchId, id);
-
   if (action === "delete") {
+    if (!canDeleteEvent(ev0)) return;
     if (!confirm("この記録を削除しますか？")) return;
+
     try {
-      await deleteDoc(ref);
+      await deleteDoc(eventRef(currentMatchId, id));
     } catch (err) {
       alert(`削除失敗\n${err.code}\n${err.message}`);
-      console.error(err);
-    }
-    return;
-  }
-
-  if (action === "edit") {
-    const newType = prompt("種別（goal / callahan）:", ev0.type || "goal");
-    if (newType === null) return;
-
-    const typeTrim = String(newType).trim();
-    if (typeTrim !== "goal" && typeTrim !== "callahan") {
-      alert("種別は goal または callahan を入力してください。");
-      return;
-    }
-
-    const newTime = prompt("時間（mm:ss）:", msToMMSS(ev0.timeMs || 0));
-    if (newTime === null) return;
-
-    const mmss = parseMMSS(newTime);
-    if (mmss == null) return alert("時間は mm:ss 形式で入力してください（例：02:15）。");
-
-    const payload = {
-      type: typeTrim,
-      timeMs: mmss,
-      updatedAt: serverTimestamp(),
-    };
-    if (payload.type !== "goal") payload.assistPlayerId = "";
-
-    try {
-      await updateDoc(ref, payload);
-    } catch (err) {
-      alert(`編集失敗\n${err.code}\n${err.message}`);
       console.error(err);
     }
   }
@@ -982,7 +961,6 @@ async function enterMatch(matchId) {
   try {
     currentMembership = await loadMyMembership(matchId, user.uid);
   } catch (e) {
-    // 読めない場合でも閲覧は可能（ルール次第）。ここではnullで続行。
     console.warn("membership load failed:", e);
     currentMembership = null;
   }
@@ -1030,7 +1008,6 @@ async function enterMatch(matchId) {
       rebuildSelect(assistSelectEl, "アシスト（任意）", players);
     },
     () => {
-      // 代表者以外/権限なしのときは空のまま
       rebuildSelect(playerSelectEl, "選手を選択", []);
       rebuildSelect(assistSelectEl, "アシスト（任意）", []);
     }
@@ -1043,7 +1020,7 @@ async function enterMatch(matchId) {
   // show
   showScoreScreen();
 
-  // timer controls
+  // controls
   setTimerShareStatus("");
   setEventControlsAvailability();
 }
@@ -1609,7 +1586,7 @@ createMatchBtn?.addEventListener("click", async () => {
       teamBUid: uidB,
       teamAName,
       teamBName,
-      timer: { status: "stopped", baseMs: 0, startedAt: null },
+      timer: { status: "stopped", baseMs: 0, startedAt: null, updatedBy: user.uid },
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
@@ -1883,7 +1860,7 @@ onAuthStateChanged(auth, async (user) => {
 
   const okRegistry = await hasUserRegistry(user);
   if (!okRegistry) {
-    setLoginVisibility(true); // UID確認中もログインカードは消してOKだが、混乱防止でログイン後扱いに統一
+    setLoginVisibility(true);
     showOnlyUidVerify(user);
     return;
   }
