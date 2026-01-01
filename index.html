@@ -6,334 +6,267 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Wanabee Players Stats</title>
   <link rel="stylesheet" href="style.css" />
-  <style>
-    /* 最低限の見た目（style.cssがある前提で、足りない分だけ補助） */
-    .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
-    .hint { opacity:.8; font-size: 0.9em; }
-    .ghost { opacity:.85; }
-    .timer { font-size: 32px; font-weight: 800; letter-spacing: .02em; }
-    .card { max-width: 860px; margin: 16px auto; padding: 16px; border: 1px solid #ddd; border-radius: 12px; }
-    .ok-btn { filter: saturate(1.2); font-weight: 800; }
-    textarea { padding: 8px; }
-    input, select { padding: 8px; }
-    button { padding: 8px 12px; cursor:pointer; }
-    button[disabled] { opacity: .45; cursor: not-allowed; }
-    hr { margin: 16px 0; }
-    ul { padding-left: 18px; }
-
-    /* Score layout */
-    .scoreboard {
-      display: grid;
-      grid-template-columns: 1fr auto 1fr;
-      align-items: center;
-      gap: 12px;
-      margin-top: 10px;
-      padding: 10px 8px;
-      border-top: 1px solid #eee;
-      border-bottom: 1px solid #eee;
-    }
-    .team-col { text-align:center; }
-    .team-name { font-weight: 800; font-size: 18px; }
-    .team-score { font-weight: 900; font-size: 26px; margin-top: 6px; }
-
-    .events-table { margin-top: 10px; }
-    .event-row {
-      display: grid;
-      grid-template-columns: 1fr 120px 1fr 140px; /* left | time | right | actions */
-      gap: 10px;
-      align-items: center;
-      padding: 10px 6px;
-      border-bottom: 1px solid #eee;
-    }
-    .event-left { text-align: left; }
-    .event-right { text-align: right; }
-    .event-time { text-align: center; font-weight: 800; }
-    .event-actions { text-align: right; white-space: nowrap; }
-    .event-main { font-weight: 800; }
-    .event-sub { margin-top: 2px; opacity: .85; font-size: .92em; }
-    .event-empty { color: transparent; user-select: none; }
-
-    @media (max-width: 680px) {
-      .event-row {
-        grid-template-columns: 1fr 92px 1fr 120px;
-      }
-      .team-name { font-size: 16px; }
-      .team-score { font-size: 24px; }
-    }
-  </style>
 </head>
 <body>
-  <h1>Wanabee Players Stats</h1>
-
-  <!-- ログイン（最初の画面のみ表示） -->
-  <section id="login-section" class="card">
-    <h2>ログイン</h2>
-    <input type="email" id="email" placeholder="メールアドレス" autocomplete="email" />
-    <input type="password" id="password" placeholder="パスワード" autocomplete="current-password" />
-    <div class="row">
-      <button id="login-btn">ログイン</button>
-      <button id="signup-btn">新規登録</button>
-    </div>
-    <p id="login-status" class="hint"></p>
-  </section>
-
-  <!-- ログイン後バー（ログアウトはこちらに移動） -->
-  <section id="account-bar" class="card" style="display:none;">
-    <div class="row" style="justify-content:space-between;">
-      <div>
-        <div class="hint">ログイン状態</div>
-        <div id="account-status" style="font-weight:700;"></div>
+  <header class="topbar" id="topbar" style="display:none;">
+    <div class="topbar__inner">
+      <div class="brand">
+        <div class="brand__title">Wanabee Players Stats</div>
+        <div class="brand__sub" id="topbar-status">-</div>
       </div>
-      <button id="logout-btn" class="ghost">ログアウト</button>
+      <div class="topbar__actions">
+        <button id="logout-btn" class="btn btn--ghost">ログアウト</button>
+      </div>
     </div>
-  </section>
+  </header>
 
-  <!-- UID確認（初回のみ） ※ユーザー指定のHTMLを採用 -->
-  <section id="uid-verify-section" class="card" style="display:none;">
-    <h2>UID確認</h2>
-    <p class="hint">
-      表示中のUIDを、入力欄に正確に入力してください（大文字小文字を区別します）。
-    </p>
+  <main class="container">
 
-    <div class="hint">表示中のUID</div>
-    <div id="uid-display" style="font-weight:800; font-size: 18px; margin: 6px 0 10px;"></div>
+    <!-- ログイン（最初の画面のみ表示） -->
+    <section id="login-section" class="card">
+      <h2>ログイン</h2>
+      <div class="stack">
+        <input type="email" id="email" placeholder="メールアドレス" autocomplete="email" />
+        <input type="password" id="password" placeholder="パスワード" autocomplete="current-password" />
+      </div>
+      <div class="row" style="margin-top:12px;">
+        <button id="login-btn" class="btn">ログイン</button>
+        <button id="signup-btn" class="btn btn--ghost">新規登録</button>
+      </div>
+      <p id="login-status" class="hint" style="margin-top:10px;"></p>
+    </section>
 
-    <input id="uid-input" type="text" placeholder="ここにUIDを入力" style="width:100%; max-width:680px;" />
+    <!-- UID確認（初回のみ：ユーザー提供HTMLを採用） -->
+    <!-- UID確認（初回のみ） -->
+    <section id="uid-verify-section" class="card" style="display:none;">
+      <h2>UID確認</h2>
+      <p class="hint">
+        表示中のUIDを、入力欄に正確に入力してください（大文字小文字を区別します）。
+      </p>
 
-    <p id="uid-hint" class="hint" style="display:none; color:#c00; margin-top:8px;">
-      表示中の文字列と一致すると認証できます
-    </p>
+      <div class="hint">表示中のUID</div>
+      <div id="uid-display" style="font-weight:800; font-size: 18px; margin: 6px 0 10px;"></div>
 
-    <div class="row" style="margin-top:10px;">
-      <button id="uid-verify-btn" disabled>認証</button>
-    </div>
-  </section>
+      <input id="uid-input" type="text" placeholder="ここにUIDを入力" style="width:100%; max-width:680px;" />
 
-  <!-- 代表者ホーム -->
-  <section id="rep-home-section" class="card" style="display:none;">
-    <h2>代表者メニュー</h2>
-    <div class="row">
-      <button id="open-player-registry-btn">選手登録（大会マスタ）</button>
-      <button id="open-matches-btn" class="ghost">参加試合一覧</button>
-    </div>
-    <p class="hint" style="margin-top:10px;">
-      「選手登録（大会マスタ）」は大会単位で名簿を作成します。試合ごとに反映したい場合は、各試合の「選手管理」からコピーしてください。
-    </p>
-  </section>
+      <p id="uid-hint" class="hint" style="display:none; color:#c00; margin-top:8px;">
+        表示中の文字列と一致すると認証できます
+      </p>
 
-  <!-- 代表者：選手登録（大会マスタ） -->
-  <section id="player-registry-section" class="card" style="display:none;">
-    <h2>代表者：選手登録（大会マスタ）</h2>
+      <div class="row" style="margin-top:10px;">
+        <button id="uid-verify-btn" class="btn" disabled>認証</button>
+      </div>
+    </section>
 
-    <div class="row">
-      <button id="back-to-home-btn" class="ghost">← メニューに戻る</button>
-      <button id="go-to-matches-btn" class="ghost">参加試合一覧へ</button>
-    </div>
+    <!-- 代表者ホーム -->
+    <section id="rep-home-section" class="card" style="display:none;">
+      <h2>代表者メニュー</h2>
+      <div class="row">
+        <button id="open-player-registry-btn" class="btn">選手登録（大会マスタ）</button>
+        <button id="open-matches-btn" class="btn btn--ghost">参加試合一覧</button>
+      </div>
+      <p class="hint" style="margin-top:10px;">
+        「選手登録（大会マスタ）」は大会単位で名簿を作成します。試合ごとに反映したい場合は、各試合の「選手管理」からコピーしてください。
+      </p>
+    </section>
 
-    <hr />
+    <!-- 代表者：選手登録（大会マスタ） -->
+    <section id="player-registry-section" class="card" style="display:none;">
+      <h2>代表者：選手登録（大会マスタ）</h2>
 
-    <h3>大会ID（tournamentId）を指定</h3>
-    <p class="hint">例：2025spring、wuc2026、など（あなたが決めた文字列でOK）</p>
-    <div class="row">
-      <input type="text" id="registry-tournament-id" placeholder="tournamentId を入力" style="min-width:280px;" />
-      <button id="load-registry-btn">読み込む</button>
-    </div>
-    <p id="registry-context" class="hint"></p>
+      <div class="row">
+        <button id="back-to-home-btn" class="btn btn--ghost">← メニューに戻る</button>
+        <button id="go-to-matches-btn" class="btn btn--ghost">参加試合一覧へ</button>
+      </div>
 
-    <hr />
+      <hr />
 
-    <h3>個別追加</h3>
-    <div class="row">
-      <input type="text" id="registry-player-number" placeholder="背番号（例：12）" />
-      <input type="text" id="registry-player-name" placeholder="選手名（例：山田 太郎）" style="min-width:240px;" />
-      <button id="registry-add-player-btn">追加</button>
-    </div>
+      <h3>大会ID（tournamentId）を指定</h3>
+      <p class="hint">例：2025spring、wuc2026、など（あなたが決めた文字列でOK）</p>
+      <div class="row">
+        <input type="text" id="registry-tournament-id" placeholder="tournamentId を入力（小文字推奨）" style="min-width:280px;" />
+        <button id="load-registry-btn" class="btn">読み込む</button>
+      </div>
+      <p id="registry-context" class="hint"></p>
 
-    <h3>一括追加（背番号,名前）</h3>
-    <textarea id="registry-bulk" rows="6" style="width:100%;" placeholder="例：
+      <hr />
+
+      <h3>個別追加</h3>
+      <div class="row">
+        <input type="text" id="registry-player-number" placeholder="背番号（例：12）" />
+        <input type="text" id="registry-player-name" placeholder="選手名（例：山田 太郎）" style="min-width:240px;" />
+        <button id="registry-add-player-btn" class="btn">追加</button>
+      </div>
+
+      <h3>一括追加（背番号,名前）</h3>
+      <textarea id="registry-bulk" rows="6" style="width:100%;" placeholder="例：
 12,山田太郎
 7,佐藤花子
 "></textarea>
-    <div class="row">
-      <button id="registry-bulk-add-btn">一括追加</button>
-    </div>
+      <div class="row">
+        <button id="registry-bulk-add-btn" class="btn">一括追加</button>
+      </div>
 
-    <hr />
+      <hr />
 
-    <h3>登録済み（編集・削除）</h3>
-    <div class="row">
-      <input type="text" id="registry-search" placeholder="検索（背番号/名前）" style="min-width:240px;" />
-      <button id="registry-clear-search-btn" class="ghost">クリア</button>
-    </div>
-    <ul id="registry-players-list"></ul>
-  </section>
+      <h3>登録済み（編集・削除）</h3>
+      <div class="row">
+        <input type="text" id="registry-search" placeholder="検索（背番号/名前）" style="min-width:240px;" />
+        <button id="registry-clear-search-btn" class="btn btn--ghost">クリア</button>
+      </div>
+      <ul id="registry-players-list" class="list"></ul>
+    </section>
 
-  <!-- 管理者：試合作成（管理者のみ表示） -->
-  <section id="admin-section" class="card" style="display:none;">
-    <h2>管理者：試合作成</h2>
+    <!-- 管理者：試合作成（管理者のみ表示） -->
+    <section id="admin-section" class="card" style="display:none;">
+      <h2>管理者：試合作成</h2>
+      <p class="hint">
+        「チーム名×2」「代表者メール×2」を入力すると、試合作成＋招待（invites）を自動で作ります。
+      </p>
 
-    <p class="hint">「チーム名×2」「代表者メール×2」を入力すると、試合作成＋招待（invites）を自動で作ります。</p>
+      <div class="row">
+        <input type="text" id="team-a-name" placeholder="チーム名A（例：Tokyo A）" style="min-width:220px;" />
+        <input type="text" id="team-b-name" placeholder="チーム名B（例：Tokyo C）" style="min-width:220px;" />
+      </div>
 
-    <div class="row">
-      <input type="text" id="team-a-name" placeholder="チーム名A（例：Tokyo A）" style="min-width:220px;" />
-      <div style="font-weight:800;">vs</div>
-      <input type="text" id="team-b-name" placeholder="チーム名B（例：Tokyo C）" style="min-width:220px;" />
-      <div class="hint">（チーム名：表示用）</div>
-    </div>
+      <div class="row">
+        <input type="email" id="team-a-email" placeholder="チームA代表者メール" style="min-width:260px;" />
+        <input type="email" id="team-b-email" placeholder="チームB代表者メール" style="min-width:260px;" />
+        <button id="create-match-btn" class="btn">作成</button>
+      </div>
 
-    <div class="row">
-      <input type="email" id="team-a-email" placeholder="チームA代表者メール" style="min-width:260px;" />
-      <input type="email" id="team-b-email" placeholder="チームB代表者メール" style="min-width:260px;" />
-      <div class="hint">（メールアドレス）</div>
-    </div>
+      <p id="admin-info" class="hint"></p>
+    </section>
 
-    <div class="row" style="margin-top:8px;">
-      <button id="create-match-btn">作成</button>
-    </div>
+    <!-- 参加できる試合 -->
+    <section id="matches-section" class="card" style="display:none;">
+      <h2 id="matches-title">参加できる試合</h2>
+      <ul id="matches-list" class="list"></ul>
+    </section>
 
-    <p id="admin-info" class="hint"></p>
-  </section>
+    <!-- チーム管理者：選手管理（試合単位） -->
+    <section id="team-admin-section" class="card" style="display:none;">
+      <h2>チーム管理者：選手管理（試合単位）</h2>
 
-  <!-- チーム：joinCode参加（予備導線） -->
-  <section id="join-section" class="card" style="display:none;">
-    <h2>チーム：試合に参加（予備）</h2>
-    <div class="row">
-      <input type="text" id="join-code" placeholder="joinCode（例：ABCD1234）">
-      <input type="text" id="team-name" placeholder="チーム名（例：Tokyo A）">
-      <button id="join-btn">参加</button>
-    </div>
-    <p id="join-info" class="hint"></p>
-  </section>
+      <div class="row">
+        <button id="back-to-matches-from-admin-btn" class="btn btn--ghost">← 試合一覧に戻る</button>
+        <button id="go-to-score-from-admin-btn" class="btn">試合入力に進む</button>
+      </div>
 
-  <!-- 参加できる試合 -->
-  <section id="matches-section" class="card" style="display:none;">
-    <h2>試合一覧</h2>
-    <p class="hint" id="matches-subhint"></p>
-    <ul id="matches-list"></ul>
-  </section>
+      <p id="team-admin-context" class="hint"></p>
 
-  <!-- チーム管理者：選手管理（大会マスタ/試合選手） -->
-  <section id="team-admin-section" class="card" style="display:none;">
-    <h2>チーム管理者：選手管理（試合単位）</h2>
+      <hr />
 
-    <div class="row">
-      <button id="back-to-matches-from-admin-btn" class="ghost">← 試合選択に戻る</button>
-      <button id="go-to-score-from-admin-btn">試合入力に進む</button>
-    </div>
+      <h3>大会単位：選手マスタ（共有）</h3>
+      <p class="hint">
+        この大会の選手情報を編集します。試合開始前に登録して、「試合へコピー」を押してください。
+      </p>
 
-    <p id="team-admin-context" class="hint"></p>
+      <div class="row">
+        <button id="copy-tournament-to-match-btn" class="btn btn--ghost">選手情報をこの試合へコピー</button>
+        <button id="clear-match-players-btn" class="btn btn--ghost">この試合の選手を全削除</button>
+      </div>
 
-    <hr />
-
-    <h3>大会単位：選手マスタ（共有）</h3>
-    <p class="hint">
-      この大会の選手情報を編集します。試合開始前に登録して、「試合へコピー」を押してください。
-    </p>
-
-    <div class="row">
-      <button id="copy-tournament-to-match-btn" class="ghost">選手情報をこの試合へコピー</button>
-      <button id="clear-match-players-btn" class="ghost">この試合の選手を全削除</button>
-    </div>
-
-    <h4>大会マスタ：一括登録（背番号,名前）</h4>
-    <textarea id="bulk-tournament-players" rows="6" style="width:100%;" placeholder="例：
+      <h4>大会マスタ：一括登録（背番号,名前）</h4>
+      <textarea id="bulk-tournament-players" rows="6" style="width:100%;" placeholder="例：
 12,山田太郎
 7,佐藤花子
 "></textarea>
-    <div class="row">
-      <button id="bulk-add-tournament-btn">チームへ一括追加</button>
-    </div>
+      <div class="row">
+        <button id="bulk-add-tournament-btn" class="btn">チームへ一括追加</button>
+      </div>
 
-    <h4>大会マスタ：個別追加</h4>
-    <div class="row">
-      <input type="text" id="tournament-player-number" placeholder="背番号（例：12）" />
-      <input type="text" id="tournament-player-name" placeholder="名前（例：山田 太郎）" />
-      <button id="add-tournament-player-btn">追加</button>
-    </div>
+      <h4>大会マスタ：個別追加</h4>
+      <div class="row">
+        <input type="text" id="tournament-player-number" placeholder="背番号（例：12）" />
+        <input type="text" id="tournament-player-name" placeholder="名前（例：山田 太郎）" />
+        <button id="add-tournament-player-btn" class="btn">追加</button>
+      </div>
 
-    <h4>大会マスタ：登録済み（編集・削除）</h4>
-    <ul id="tournament-players-list"></ul>
+      <h4>大会マスタ：登録済み（編集・削除）</h4>
+      <ul id="tournament-players-list" class="list"></ul>
 
-    <hr />
+      <hr />
 
-    <h3>試合単位：選手リスト（この試合で使用）</h3>
-    <p class="hint">
-      試合中の編集も可能です。選手情報の内容を反映したい場合は「選手情報をこの試合へコピー」を使用してください。
-    </p>
+      <h3>試合単位：選手リスト（この試合で使用）</h3>
+      <p class="hint">
+        試合中の編集も可能です。選手情報の内容を反映したい場合は「選手情報をこの試合へコピー」を使用してください。
+      </p>
 
-    <h4>この試合：一括登録（背番号,名前）</h4>
-    <textarea id="bulk-match-players" rows="6" style="width:100%;" placeholder="例：
+      <h4>この試合：一括登録（背番号,名前）</h4>
+      <textarea id="bulk-match-players" rows="6" style="width:100%;" placeholder="例：
 12,山田太郎
 7,佐藤花子
 "></textarea>
-    <div class="row">
-      <button id="bulk-add-match-btn">この試合へ一括追加</button>
-    </div>
-
-    <h4>この試合：個別追加</h4>
-    <div class="row">
-      <input type="text" id="match-player-number" placeholder="背番号（例：12）" />
-      <input type="text" id="match-player-name" placeholder="名前（例：山田 太郎）" />
-      <button id="add-match-player-btn">追加</button>
-    </div>
-
-    <h4>この試合：登録済み（編集・削除）</h4>
-    <ul id="match-players-list"></ul>
-  </section>
-
-  <!-- スコア入力（スクショレイアウトに寄せる） -->
-  <section id="score-section" class="card" style="display:none;">
-    <h2>試合入力</h2>
-
-    <div class="row">
-      <button id="back-to-matches-btn" class="ghost">← 試合一覧に戻る</button>
-      <button id="open-team-admin-btn" class="ghost">選手管理を開く</button>
-    </div>
-
-    <!-- タイマー操作 -->
-    <div class="row" style="justify-content:center; margin-top:10px;">
-      <button id="start-timer-btn">タイマー開始</button>
-      <button id="reset-timer-btn" class="ghost">リセット</button>
-      <button id="stop-timer-btn" class="ghost">一時停止</button>
-    </div>
-
-    <!-- スコアボード -->
-    <div class="scoreboard">
-      <div class="team-col">
-        <div id="left-team-name" class="team-name">-</div>
-        <div id="left-team-score" class="team-score">0</div>
+      <div class="row">
+        <button id="bulk-add-match-btn" class="btn">この試合へ一括追加</button>
       </div>
 
-      <div style="text-align:center;">
-        <div id="timer" class="timer">00:00</div>
+      <h4>この試合：個別追加</h4>
+      <div class="row">
+        <input type="text" id="match-player-number" placeholder="背番号（例：12）" />
+        <input type="text" id="match-player-name" placeholder="名前（例：山田 太郎）" />
+        <button id="add-match-player-btn" class="btn">追加</button>
       </div>
 
-      <div class="team-col">
-        <div id="right-team-name" class="team-name">-</div>
-        <div id="right-team-score" class="team-score">0</div>
+      <h4>この試合：登録済み（編集・削除）</h4>
+      <ul id="match-players-list" class="list"></ul>
+    </section>
+
+    <!-- 試合入力 -->
+    <section id="score-section" class="card" style="display:none;">
+      <h2>試合入力</h2>
+
+      <div class="row">
+        <button id="back-to-matches-btn" class="btn btn--ghost">← 試合一覧に戻る</button>
+        <button id="open-team-admin-btn" class="btn btn--ghost">選手管理を開く</button>
       </div>
-    </div>
 
-    <!-- 入力：選手/アシスト -->
-    <div class="row" style="justify-content:center; margin-top:12px;">
-      <select id="player-select" style="min-width:220px;">
-        <option value="">選手を選択</option>
-      </select>
+      <!-- タイマー操作 -->
+      <div class="row" style="margin-top:10px;">
+        <button id="start-timer-btn" class="btn">タイマー開始</button>
+        <button id="reset-timer-btn" class="btn btn--ghost">リセット</button>
+        <button id="stop-timer-btn" class="btn btn--ghost">一時停止</button>
+      </div>
 
-      <select id="assist-select" style="min-width:220px;">
-        <option value="">アシスト（任意）</option>
-      </select>
-    </div>
+      <!-- スコア + タイマー（必ず表示） -->
+      <div class="scoreboard" style="margin-top:12px;">
+        <div class="scoreboard__side">
+          <div class="scoreboard__team" id="team-left-name">Team A</div>
+          <div class="scoreboard__score" id="score-left">0</div>
+        </div>
+        <div class="scoreboard__center">
+          <div id="timer" class="timer">00:00</div>
+        </div>
+        <div class="scoreboard__side scoreboard__side--right">
+          <div class="scoreboard__team" id="team-right-name">Team B</div>
+          <div class="scoreboard__score" id="score-right">0</div>
+        </div>
+      </div>
 
-    <!-- 入力：ボタン（時刻列の下＝中央に寄せる） -->
-    <div class="row" style="justify-content:center; margin-top:10px;">
-      <button id="record-score-btn">ゴール</button>
-      <button id="record-callahan-btn" class="ghost">キャラハン</button>
-    </div>
+      <!-- 入力 -->
+      <div class="row" style="margin-top:14px;">
+        <select id="player-select">
+          <option value="">選手を選択</option>
+        </select>
+        <select id="assist-select">
+          <option value="">アシスト（任意）</option>
+        </select>
+      </div>
 
-    <h3 style="margin-top:16px;">試合記録</h3>
-    <div id="events-table" class="events-table"></div>
-  </section>
+      <!-- 得点入力ボタン（時刻列の下へ移動：スクショ案に合わせて下段） -->
+      <div class="row" style="margin-top:10px;">
+        <button id="record-goal-btn" class="btn">ゴール</button>
+        <button id="record-callahan-btn" class="btn btn--ghost">キャラハン</button>
+      </div>
+
+      <hr />
+
+      <h3>試合記録</h3>
+      <div id="events-board" class="events-board"></div>
+    </section>
+
+  </main>
 
   <script type="module" src="app.js"></script>
 </body>
