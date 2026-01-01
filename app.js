@@ -1,4 +1,4 @@
-// app.js（全文置換：大会マスタ→大会に含まれる試合すべてへ自動反映（未公開含む）＋試合記録は編集ボタン非表示（削除は残す）＋試合一覧の「選手管理」ボタン非表示）
+// app.js（全文置換：管理者試合一覧に「公開/非公開切替」「戻る」「試合作成」追加）
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-app.js";
 import {
   getAuth,
@@ -104,6 +104,10 @@ const matchesAdminBlock = document.getElementById("matches-admin-block");
 const adminMatchesListEl = document.getElementById("admin-matches-list");
 const matchesListEl = document.getElementById("matches-list");
 
+// ★追加：管理者試合一覧の上部ボタン
+const adminMatchesBackBtn = document.getElementById("admin-matches-back-btn");
+const adminOpenCreateMatchBtn = document.getElementById("admin-open-create-match-btn");
+
 // 試合入力
 const backToMatchesBtn = document.getElementById("back-to-matches-btn");
 const openTeamAdminBtn = document.getElementById("open-team-admin-btn");
@@ -127,10 +131,19 @@ const eventControlsHintEl = document.getElementById("event-controls-hint");
 
 const eventListEl = document.getElementById("event-list");
 
-// チーム管理者（試合単位：試合選手管理）
+// チーム管理者（試合単位）
 const teamAdminContextEl = document.getElementById("team-admin-context");
 const backToMatchesFromAdminBtn = document.getElementById("back-to-matches-from-admin-btn");
 const goToScoreFromAdminBtn = document.getElementById("go-to-score-from-admin-btn");
+const copyTournamentToMatchBtn = document.getElementById("copy-tournament-to-match-btn");
+const clearMatchPlayersBtn = document.getElementById("clear-match-players-btn");
+
+const bulkTournamentPlayersEl = document.getElementById("bulk-tournament-players");
+const bulkAddTournamentBtn = document.getElementById("bulk-add-tournament-btn");
+const tournamentPlayerNumberEl = document.getElementById("tournament-player-number");
+const tournamentPlayerNameEl = document.getElementById("tournament-player-name");
+const addTournamentPlayerBtn = document.getElementById("add-tournament-player-btn");
+const tournamentPlayersListEl = document.getElementById("tournament-players-list");
 
 const bulkMatchPlayersEl = document.getElementById("bulk-match-players");
 const bulkAddMatchBtn = document.getElementById("bulk-add-match-btn");
@@ -145,7 +158,7 @@ const matchPlayersListEl = document.getElementById("match-players-list");
 let currentMatchId = null;
 let currentMatch = null;
 let currentTournamentId = null;
-let currentMembership = null; // matches/{matchId}/memberships/{uid}
+let currentMembership = null;
 let isAdminUser = false;
 
 let registryTournamentId = null;
@@ -161,9 +174,11 @@ let matchTimer = {
   startedAt: null,
 };
 
-let scoreByTeam = {}; // {teamUid: score}
+let scoreByTeam = {};
 
-// realtime unsub
+let unsubInvites = null;
+let unsubAdminMatches = null;
+
 let unsubMatchDoc = null;
 let unsubEvents = null;
 let unsubScoreAgg = null;
@@ -171,18 +186,18 @@ let unsubPlayersForSelect = null;
 
 let unsubTournamentPlayers = null;
 let unsubMatchPlayers = null;
+
 let unsubRegistryPlayers = null;
 
-// UI ticker
 let uiTickerId = null;
-
-// UID verify state
 let uidVerifyBound = false;
 
 // ======================
 // utils
 // ======================
-function pad2(n) { return String(n).padStart(2, "0"); }
+function pad2(n) {
+  return String(n).padStart(2, "0");
+}
 function msToMMSS(ms) {
   const totalSec = Math.max(0, Math.floor(ms / 1000));
   const mm = Math.floor(totalSec / 60);
@@ -205,21 +220,24 @@ function escapeHtml(str) {
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
 }
-function normalizeEmail(email) { return (email || "").trim().toLowerCase(); }
-function normalizeTournamentId(raw) { return String(raw || "").trim().toLowerCase(); }
-function validTournamentId(tid) { return /^[a-z0-9][a-z0-9_-]{1,50}$/.test(tid); }
+function normalizeEmail(email) {
+  return (email || "").trim().toLowerCase();
+}
+function normalizeTournamentId(raw) {
+  return String(raw || "").trim().toLowerCase();
+}
+function validTournamentId(tid) {
+  return /^[a-z0-9][a-z0-9_-]{1,50}$/.test(tid);
+}
 function randomJoinCode(len = 8) {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   let out = "";
   for (let i = 0; i < len; i++) out += chars[Math.floor(Math.random() * chars.length)];
   return out;
 }
-function normalizePlayerNumberKey(n) {
-  // 背番号を docId に使う（setDoc merge のキー）
-  // " 07 " などは "07" を維持。空は不可。
-  return String(n || "").trim();
+function setTopStatus(text) {
+  if (topStatusEl) topStatusEl.textContent = text || "";
 }
-function setTopStatus(text) { if (topStatusEl) topStatusEl.textContent = text || ""; }
 
 // ======================
 // Collections / refs
@@ -233,8 +251,8 @@ function tournamentRef(tournamentId) { return doc(db, "tournaments", tournamentI
 function tournamentTeamPlayersCol(tournamentId, teamId) {
   return collection(db, "tournaments", tournamentId, "teams", teamId, "players");
 }
-function tournamentTeamPlayerRef(tournamentId, teamId, playerKey) {
-  return doc(db, "tournaments", tournamentId, "teams", teamId, "players", playerKey);
+function tournamentTeamPlayerRef(tournamentId, teamId, playerId) {
+  return doc(db, "tournaments", tournamentId, "teams", teamId, "players", playerId);
 }
 
 function matchesCol() { return collection(db, "matches"); }
@@ -243,15 +261,14 @@ function membershipsCol(matchId) { return collection(db, "matches", matchId, "me
 function membershipRef(matchId, uid) { return doc(db, "matches", matchId, "memberships", uid); }
 
 function invitesCol() { return collection(db, "invites"); }
-
 function eventsCol(matchId) { return collection(db, "matches", matchId, "events"); }
 function eventRef(matchId, eventId) { return doc(db, "matches", matchId, "events", eventId); }
 
 function matchPlayersCol(matchId, teamId) {
   return collection(db, "matches", matchId, "teams", teamId, "players");
 }
-function matchPlayerRef(matchId, teamId, playerKey) {
-  return doc(db, "matches", matchId, "teams", teamId, "players", playerKey);
+function matchPlayerRef(matchId, teamId, playerId) {
+  return doc(db, "matches", matchId, "teams", teamId, "players", playerId);
 }
 function joinCodeRef(codeUpper) { return doc(db, "joinCodes", codeUpper); }
 
@@ -267,11 +284,30 @@ function hideAllMainSections() {
   teamAdminSection && (teamAdminSection.style.display = "none");
   scoreSection && (scoreSection.style.display = "none");
 }
-function showRepHome() { hideAllMainSections(); repHomeSection && (repHomeSection.style.display = "block"); }
-function showMatchesScreen() { hideAllMainSections(); matchesSection && (matchesSection.style.display = "block"); }
-function showPlayerRegistryScreen() { hideAllMainSections(); playerRegistrySection && (playerRegistrySection.style.display = "block"); }
-function showScoreScreen() { hideAllMainSections(); scoreSection && (scoreSection.style.display = "block"); }
-function showTeamAdminScreen() { hideAllMainSections(); teamAdminSection && (teamAdminSection.style.display = "block"); }
+function showRepHome() {
+  hideAllMainSections();
+  repHomeSection && (repHomeSection.style.display = "block");
+}
+function showMatchesScreen() {
+  hideAllMainSections();
+  matchesSection && (matchesSection.style.display = "block");
+}
+function showPlayerRegistryScreen() {
+  hideAllMainSections();
+  playerRegistrySection && (playerRegistrySection.style.display = "block");
+}
+function showScoreScreen() {
+  hideAllMainSections();
+  scoreSection && (scoreSection.style.display = "block");
+}
+function showTeamAdminScreen() {
+  hideAllMainSections();
+  teamAdminSection && (teamAdminSection.style.display = "block");
+}
+function showAdminCreateMatchScreen() {
+  hideAllMainSections();
+  adminSection && (adminSection.style.display = "block");
+}
 
 function setLoginVisibility(isAuthed) {
   if (loginSection) loginSection.style.display = isAuthed ? "none" : "block";
@@ -301,6 +337,9 @@ async function hasUserRegistry(user) {
 // Cleanup
 // ======================
 function cleanupRealtimeAll() {
+  unsubInvites?.(); unsubInvites = null;
+  unsubAdminMatches?.(); unsubAdminMatches = null;
+
   unsubMatchDoc?.(); unsubMatchDoc = null;
   unsubEvents?.(); unsubEvents = null;
   unsubScoreAgg?.(); unsubScoreAgg = null;
@@ -308,6 +347,7 @@ function cleanupRealtimeAll() {
 
   unsubTournamentPlayers?.(); unsubTournamentPlayers = null;
   unsubMatchPlayers?.(); unsubMatchPlayers = null;
+
   unsubRegistryPlayers?.(); unsubRegistryPlayers = null;
 
   stopUiTicker();
@@ -320,7 +360,9 @@ function stopUiTicker() {
 }
 function startUiTicker() {
   stopUiTicker();
-  uiTickerId = window.setInterval(() => { renderTimerAndScoreboard(); }, 250);
+  uiTickerId = window.setInterval(() => {
+    renderTimerAndScoreboard();
+  }, 250);
   renderTimerAndScoreboard();
 }
 
@@ -329,6 +371,7 @@ function startUiTicker() {
 // ======================
 async function loadTournamentOptions() {
   const snap = await getDocs(query(tournamentsCol(), orderBy("createdAt", "desc"), limit(100)));
+
   const items = snap.docs.map((d) => {
     const data = d.data() || {};
     return { id: d.id, name: (data.name || d.id) };
@@ -364,6 +407,7 @@ async function fetchInvitesForUid(uid) {
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
+
 async function ensureMembershipFromInvite(invite, user) {
   const ref = membershipRef(invite.matchId, user.uid);
   const snap = await getDoc(ref);
@@ -376,6 +420,7 @@ async function ensureMembershipFromInvite(invite, user) {
     });
   }
 }
+
 function formatMatchLabel(matchData) {
   const title = String(matchData?.title || "").trim();
   return title || "Untitled Match";
@@ -413,7 +458,6 @@ async function renderTeamMatchesFromInvites(user) {
       if (!ms.exists()) continue;
       const m = { id: ms.id, ...ms.data() };
 
-      // 代表者側は「選手管理」ボタン非表示（要件）
       const li = document.createElement("li");
       li.innerHTML = `
         <div class="match-item">
@@ -436,6 +480,29 @@ async function renderTeamMatchesFromInvites(user) {
   }
 }
 
+// ======================
+// ★管理者：公開/非公開切替
+// ======================
+function isPublicMatch(m) {
+  return m?.isPublic === true; // 未設定は非公開扱い
+}
+async function toggleMatchPublic(matchId, nextPublic) {
+  const user = auth.currentUser;
+  if (!user) return alert("ログインしてください。");
+  if (!isAdminUser) return alert("管理者権限がありません。");
+
+  try {
+    await updateDoc(matchRef(matchId), {
+      isPublic: !!nextPublic,
+      updatedAt: serverTimestamp(),
+      updatedBy: user.uid,
+    });
+  } catch (e) {
+    alert(`公開設定の更新に失敗\n${e.code || ""}\n${e.message || e}`);
+    console.error(e);
+  }
+}
+
 async function renderAdminAllMatches() {
   if (!adminMatchesListEl) return;
   adminMatchesListEl.innerHTML = "<li>読み込み中...</li>";
@@ -451,18 +518,32 @@ async function renderAdminAllMatches() {
 
     adminMatchesListEl.innerHTML = "";
     for (const m of matches) {
+      const pub = isPublicMatch(m);
+
       const li = document.createElement("li");
       li.innerHTML = `
         <div class="match-item">
           <div class="match-title">${escapeHtml(formatMatchLabel(m))}</div>
           <div class="match-actions">
+            <button class="btn ghost" data-action="toggle">${pub ? "公開" : "非公開"}</button>
             <button class="btn" data-action="enter">試合入力（閲覧）</button>
           </div>
         </div>
       `;
+
       li.querySelector('[data-action="enter"]')?.addEventListener("click", async () => {
         await enterMatch(m.id);
       });
+
+      li.querySelector('[data-action="toggle"]')?.addEventListener("click", async () => {
+        const next = !pub;
+        const ok = confirm(`この試合を「${next ? "公開" : "非公開"}」に切り替えますか？`);
+        if (!ok) return;
+        await toggleMatchPublic(m.id, next);
+        // 反映のため再描画
+        await renderAdminAllMatches();
+      });
+
       adminMatchesListEl.appendChild(li);
     }
   } catch (e) {
@@ -537,7 +618,10 @@ async function updateSharedTimer(partial) {
 async function onStartTimerClicked() {
   if (!canOperateTimer()) return;
   if (matchTimer.status === "running") return;
-  await updateSharedTimer({ status: "running", startedAt: serverTimestamp() });
+  await updateSharedTimer({
+    status: "running",
+    startedAt: serverTimestamp(),
+  });
 }
 async function onStopTimerClicked() {
   if (!canOperateTimer()) return;
@@ -548,11 +632,19 @@ async function onStopTimerClicked() {
   const elapsed = startedAtMs != null ? Math.max(0, Date.now() - startedAtMs) : 0;
   const nextBase = baseMs + elapsed;
 
-  await updateSharedTimer({ status: "stopped", baseMs: nextBase, startedAt: null });
+  await updateSharedTimer({
+    status: "stopped",
+    baseMs: nextBase,
+    startedAt: null,
+  });
 }
 async function onResetTimerClicked() {
   if (!canOperateTimer()) return;
-  await updateSharedTimer({ status: "stopped", baseMs: 0, startedAt: null });
+  await updateSharedTimer({
+    status: "stopped",
+    baseMs: 0,
+    startedAt: null,
+  });
 }
 function canOperateTimer() {
   if (isAdminUser) return true;
@@ -578,29 +670,20 @@ function rebuildSelect(selectEl, firstLabel, players) {
     selectEl.appendChild(o);
   }
 }
-async function getPlayerLabelFromMatchPlayers(teamUid, playerKey) {
-  if (!currentMatchId || !teamUid || !playerKey) return "";
+async function getPlayerLabelFromMatchPlayers(teamUid, playerId) {
+  if (!currentMatchId || !teamUid || !playerId) return "";
   try {
-    const snap = await getDoc(matchPlayerRef(currentMatchId, teamUid, playerKey));
-    if (snap.exists()) {
-      const p = snap.data() || {};
-      return `${p.number || "-"} ${p.name || ""}`.trim() || playerKey;
-    }
-    // 旧データ（random docId）の可能性があるので fallback でスキャン（最大50）
-    const q = query(matchPlayersCol(currentMatchId, teamUid), where("number", "==", playerKey), limit(1));
-    const s2 = await getDocs(q);
-    if (!s2.empty) {
-      const p = s2.docs[0].data() || {};
-      return `${p.number || "-"} ${p.name || ""}`.trim() || playerKey;
-    }
-    return playerKey;
+    const snap = await getDoc(matchPlayerRef(currentMatchId, teamUid, playerId));
+    if (!snap.exists()) return playerId;
+    const p = snap.data();
+    return `${p.number || "-"} ${p.name || ""}`.trim() || playerId;
   } catch {
-    return playerKey;
+    return playerId;
   }
 }
 
 // ======================
-// Events
+// Events（得点/キャラハン：どちらも1点）
 // ======================
 function canRecordEvents() {
   return currentMembership?.role === "team";
@@ -613,7 +696,8 @@ function setEventControlsAvailability() {
   if (recordCallahanBtn) recordCallahanBtn.disabled = !ok;
 
   if (eventControlsHintEl) {
-    eventControlsHintEl.textContent = ok ? "" : "※この画面は閲覧モードです（イベント入力はチーム代表者のみ）。";
+    if (ok) eventControlsHintEl.textContent = "";
+    else eventControlsHintEl.textContent = "※この画面は閲覧モードです（イベント入力はチーム代表者のみ）。";
   }
 }
 async function recordEvent(type) {
@@ -648,13 +732,12 @@ async function recordEvent(type) {
     console.error(e);
   }
 }
-function canDeleteEvent(ev) {
+function canEditEvent(ev) {
   const user = auth.currentUser;
   if (!user) return false;
   if (isAdminUser) return true;
   return ev?.createdBy === user.uid;
 }
-
 async function subscribeEvents(matchId) {
   unsubEvents?.(); unsubEvents = null;
 
@@ -670,11 +753,11 @@ async function subscribeEvents(matchId) {
     }
   );
 }
-
 async function renderEvents() {
   if (!eventListEl) return;
 
   const rows = [];
+
   for (const ev of latestEvents) {
     const t = msToMMSS(ev.timeMs || 0);
     const side = ev.teamId === leftTeam.uid ? "left" : (ev.teamId === rightTeam.uid ? "right" : "unknown");
@@ -710,9 +793,10 @@ async function renderEvents() {
 
     const timeCell = `<div class="ev-time">${escapeHtml(t)}</div>`;
 
-    // 要件：編集ボタンは非表示、削除ボタンは残す
-    const actions = canDeleteEvent(ev)
+    // ここは今回要件外（編集非表示などは別件）。現状維持。
+    const actions = canEditEvent(ev)
       ? `<div class="ev-actions">
+           <button class="btn ghost mini" data-action="edit" data-id="${escapeHtml(ev.id)}">編集</button>
            <button class="btn ghost mini" data-action="delete" data-id="${escapeHtml(ev.id)}">削除</button>
          </div>`
       : `<div class="ev-actions muted"></div>`;
@@ -730,7 +814,6 @@ async function renderEvents() {
   eventListEl.innerHTML = rows.length ? rows.join("") : `<div class="hint">まだ記録がありません。</div>`;
 }
 
-// イベント削除のみ
 eventListEl?.addEventListener("click", async (e) => {
   const btn = e.target?.closest?.("button");
   if (!btn) return;
@@ -741,14 +824,48 @@ eventListEl?.addEventListener("click", async (e) => {
 
   const ev0 = latestEvents.find((x) => x.id === id);
   if (!ev0) return;
+  if (!canEditEvent(ev0)) return;
+
+  const ref = eventRef(currentMatchId, id);
 
   if (action === "delete") {
-    if (!canDeleteEvent(ev0)) return;
     if (!confirm("この記録を削除しますか？")) return;
     try {
-      await deleteDoc(eventRef(currentMatchId, id));
+      await deleteDoc(ref);
     } catch (err) {
       alert(`削除失敗\n${err.code}\n${err.message}`);
+      console.error(err);
+    }
+    return;
+  }
+
+  if (action === "edit") {
+    const newType = prompt("種別（goal / callahan）:", ev0.type || "goal");
+    if (newType === null) return;
+
+    const typeTrim = String(newType).trim();
+    if (typeTrim !== "goal" && typeTrim !== "callahan") {
+      alert("種別は goal または callahan を入力してください。");
+      return;
+    }
+
+    const newTime = prompt("時間（mm:ss）:", msToMMSS(ev0.timeMs || 0));
+    if (newTime === null) return;
+
+    const mmss = parseMMSS(newTime);
+    if (mmss == null) return alert("時間は mm:ss 形式で入力してください（例：02:15）。");
+
+    const payload = {
+      type: typeTrim,
+      timeMs: mmss,
+      updatedAt: serverTimestamp(),
+    };
+    if (payload.type !== "goal") payload.assistPlayerId = "";
+
+    try {
+      await updateDoc(ref, payload);
+    } catch (err) {
+      alert(`編集失敗\n${err.code}\n${err.message}`);
       console.error(err);
     }
   }
@@ -880,11 +997,11 @@ async function enterMatch(matchId) {
   subscribeScoreAggregate(matchId);
 
   showScoreScreen();
+
   setTimerShareStatus("");
   setEventControlsAvailability();
 }
 
-// back
 backToMatchesBtn?.addEventListener("click", async () => {
   stopUiTicker();
 
@@ -925,7 +1042,7 @@ recordGoalBtn?.addEventListener("click", async () => { await recordEvent("goal")
 recordCallahanBtn?.addEventListener("click", async () => { await recordEvent("callahan"); });
 
 // ======================
-// Team admin（試合単位：試合選手管理）
+// Team admin（試合単位）
 // ======================
 function parseBulkPlayers(text) {
   const lines = String(text || "").split("\n").map((s) => s.trim()).filter(Boolean);
@@ -937,7 +1054,6 @@ function parseBulkPlayers(text) {
   }
   return rows;
 }
-
 function renderPlayersListForAdmin({ listEl, players, onEdit, onDelete }) {
   if (!listEl) return;
 
@@ -975,24 +1091,39 @@ function renderPlayersListForAdmin({ listEl, players, onEdit, onDelete }) {
     }
   };
 }
+async function clearAllMatchPlayers(matchId, teamId) {
+  const snap = await getDocs(query(matchPlayersCol(matchId, teamId)));
+  if (snap.empty) return;
 
-// 試合側 players は docId=背番号キー（推奨）
-async function upsertMatchPlayer(matchId, teamId, numberKey, name) {
-  const key = normalizePlayerNumberKey(numberKey);
-  if (!key) throw new Error("背番号が空です。");
-  await setDoc(
-    matchPlayerRef(matchId, teamId, key),
-    {
-      number: key,
-      name: String(name || "").trim(),
-      active: true,
-      updatedAt: serverTimestamp(),
-      createdAt: serverTimestamp(),
-    },
-    { merge: true }
-  );
+  let batch = writeBatch(db);
+  let count = 0;
+  for (const d of snap.docs) {
+    batch.delete(d.ref);
+    count++;
+    if (count >= 450) {
+      await batch.commit();
+      batch = writeBatch(db);
+      count = 0;
+    }
+  }
+  if (count > 0) await batch.commit();
 }
+async function copyTournamentPlayersToMatch(tournamentId, matchId, teamId) {
+  const snap = await getDocs(query(tournamentTeamPlayersCol(tournamentId, teamId), orderBy("number", "asc")));
+  if (snap.empty) return;
 
+  for (const d of snap.docs) {
+    const p = d.data();
+    await addDoc(matchPlayersCol(matchId, teamId), {
+      number: p.number || "",
+      name: p.name || "",
+      active: p.active !== false,
+      copiedFromTournament: true,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+  }
+}
 async function openTeamAdmin(matchId) {
   const user = auth.currentUser;
   if (!user) return alert("ログインしてください。");
@@ -1030,7 +1161,42 @@ async function openTeamAdmin(matchId) {
     await enterMatch(matchId);
   });
 
-  // ---- 試合選手：購読
+  unsubTournamentPlayers?.(); unsubTournamentPlayers = null;
+  if (currentTournamentId) {
+    unsubTournamentPlayers = onSnapshot(
+      query(tournamentTeamPlayersCol(currentTournamentId, user.uid), orderBy("number", "asc")),
+      (snap) => {
+        const players = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        renderPlayersListForAdmin({
+          listEl: tournamentPlayersListEl,
+          players,
+          onEdit: async (pid, p) => {
+            const number = prompt("背番号:", p.number || "");
+            if (number == null) return;
+            const name = prompt("名前:", p.name || "");
+            if (name == null) return;
+
+            await updateDoc(tournamentTeamPlayerRef(currentTournamentId, user.uid, pid), {
+              number: number.trim(),
+              name: name.trim(),
+              updatedAt: serverTimestamp(),
+            });
+          },
+          onDelete: async (pid) => {
+            if (!confirm("削除しますか？")) return;
+            await deleteDoc(tournamentTeamPlayerRef(currentTournamentId, user.uid, pid));
+          },
+        });
+      },
+      (err) => {
+        alert(`大会マスタ読み込み失敗\n${err.code}\n${err.message}`);
+        console.error(err);
+      }
+    );
+  } else {
+    if (tournamentPlayersListEl) tournamentPlayersListEl.innerHTML = "<li>この試合には tournamentId が未設定です。</li>";
+  }
+
   unsubMatchPlayers?.(); unsubMatchPlayers = null;
   unsubMatchPlayers = onSnapshot(
     query(matchPlayersCol(matchId, user.uid), orderBy("number", "asc")),
@@ -1045,17 +1211,15 @@ async function openTeamAdmin(matchId) {
           const name = prompt("名前:", p.name || "");
           if (name == null) return;
 
-          // pid は旧randomかもしれないので、常に「背番号キー」で upsert
-          await upsertMatchPlayer(matchId, user.uid, number, name);
-          // 旧random doc が残っていたら消す（任意）：番号キーと一致しない場合のみ削除
-          const nk = normalizePlayerNumberKey(number);
-          if (pid !== nk) {
-            try { await deleteDoc(doc(db, "matches", matchId, "teams", user.uid, "players", pid)); } catch {}
-          }
+          await updateDoc(matchPlayerRef(matchId, user.uid, pid), {
+            number: number.trim(),
+            name: name.trim(),
+            updatedAt: serverTimestamp(),
+          });
         },
         onDelete: async (pid) => {
           if (!confirm("削除しますか？")) return;
-          await deleteDoc(doc(db, "matches", matchId, "teams", user.uid, "players", pid));
+          await deleteDoc(matchPlayerRef(matchId, user.uid, pid));
         },
       });
     },
@@ -1065,167 +1229,72 @@ async function openTeamAdmin(matchId) {
     }
   );
 
-  // ---- 試合選手：個別追加
+  addTournamentPlayerBtn && (addTournamentPlayerBtn.onclick = async () => {
+    if (!currentTournamentId) return alert("tournamentId が未設定です。");
+    const number = (tournamentPlayerNumberEl?.value || "").trim();
+    const name = (tournamentPlayerNameEl?.value || "").trim();
+    if (!number || !name) return alert("背番号と名前を入力してください。");
+    await addDoc(tournamentTeamPlayersCol(currentTournamentId, user.uid), {
+      number, name, active: true, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+    });
+    if (tournamentPlayerNumberEl) tournamentPlayerNumberEl.value = "";
+    if (tournamentPlayerNameEl) tournamentPlayerNameEl.value = "";
+  });
+
+  bulkAddTournamentBtn && (bulkAddTournamentBtn.onclick = async () => {
+    if (!currentTournamentId) return alert("tournamentId が未設定です。");
+    const rows = parseBulkPlayers(bulkTournamentPlayersEl?.value || "");
+    if (rows.length === 0) return alert("形式が不正です。例：12,山田太郎");
+    for (const r of rows) {
+      await addDoc(tournamentTeamPlayersCol(currentTournamentId, user.uid), {
+        number: r.number, name: r.name, active: true, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+      });
+    }
+    if (bulkTournamentPlayersEl) bulkTournamentPlayersEl.value = "";
+  });
+
   addMatchPlayerBtn && (addMatchPlayerBtn.onclick = async () => {
     const number = (matchPlayerNumberEl?.value || "").trim();
     const name = (matchPlayerNameEl?.value || "").trim();
     if (!number || !name) return alert("背番号と名前を入力してください。");
-
-    try {
-      await upsertMatchPlayer(matchId, user.uid, number, name);
-      if (matchPlayerNumberEl) matchPlayerNumberEl.value = "";
-      if (matchPlayerNameEl) matchPlayerNameEl.value = "";
-    } catch (e) {
-      alert(`追加失敗\n${e.code || ""}\n${e.message || e}`);
-      console.error(e);
-    }
+    await addDoc(matchPlayersCol(matchId, user.uid), {
+      number, name, active: true, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+    });
+    if (matchPlayerNumberEl) matchPlayerNumberEl.value = "";
+    if (matchPlayerNameEl) matchPlayerNameEl.value = "";
   });
 
-  // ---- 試合選手：一括追加
   bulkAddMatchBtn && (bulkAddMatchBtn.onclick = async () => {
     const rows = parseBulkPlayers(bulkMatchPlayersEl?.value || "");
     if (rows.length === 0) return alert("形式が不正です。例：12,山田太郎");
-
-    try {
-      for (const r of rows) {
-        await upsertMatchPlayer(matchId, user.uid, r.number, r.name);
-      }
-      if (bulkMatchPlayersEl) bulkMatchPlayersEl.value = "";
-    } catch (e) {
-      alert(`一括追加失敗\n${e.code || ""}\n${e.message || e}`);
-      console.error(e);
+    for (const r of rows) {
+      await addDoc(matchPlayersCol(matchId, user.uid), {
+        number: r.number, name: r.name, active: true, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+      });
     }
+    if (bulkMatchPlayersEl) bulkMatchPlayersEl.value = "";
+  });
+
+  clearMatchPlayersBtn && (clearMatchPlayersBtn.onclick = async () => {
+    if (!confirm("この試合の選手を全削除しますか？")) return;
+    await clearAllMatchPlayers(matchId, user.uid);
+  });
+
+  copyTournamentToMatchBtn && (copyTournamentToMatchBtn.onclick = async () => {
+    if (!currentTournamentId) return alert("tournamentId が未設定です。");
+    const existing = await getDocs(query(matchPlayersCol(matchId, user.uid)));
+    if (!existing.empty) {
+      const ok = confirm("この試合の選手が既に存在します。削除して大会情報からコピーしますか？");
+      if (!ok) return;
+      await clearAllMatchPlayers(matchId, user.uid);
+    }
+    await copyTournamentPlayersToMatch(currentTournamentId, matchId, user.uid);
+    alert("大会情報をこの試合へコピーしました。");
   });
 }
 
 // ======================
-// ★大会マスタ → 大会に含まれる試合すべてへ自動反映（未公開含む）
-// ======================
-async function listMatchesByTournamentId(tournamentId) {
-  const tid = String(tournamentId || "").trim().toLowerCase();
-  if (!tid) return [];
-
-  // 代表者が未公開を含めて反映する必要があるため、クエリは tournamentId のみ
-  // ただし write は rules で「参加者 & teamId==uid」に絞られる
-  const snap = await getDocs(query(matchesCol(), where("tournamentId", "==", tid), limit(500)));
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-}
-
-async function propagateOnePlayerToTournamentMatches({ tournamentId, teamUid, numberKey, name }) {
-  const key = normalizePlayerNumberKey(numberKey);
-  if (!key) throw new Error("背番号が空です。");
-
-  const matches = await listMatchesByTournamentId(tournamentId);
-
-  // 自分が当事者（teamA/teamB）として含まれる試合だけへ反映（安全）
-  const targets = matches.filter((m) => String(m.teamAUid || "") === teamUid || String(m.teamBUid || "") === teamUid);
-
-  // setDoc(merge) で試合側に upsert
-  // 失敗（権限/未作成membership）しても継続し、最後に件数を返す
-  let okCount = 0;
-  let ngCount = 0;
-
-  for (const m of targets) {
-    try {
-      await setDoc(
-        matchPlayerRef(m.id, teamUid, key),
-        {
-          number: key,
-          name: String(name || "").trim(),
-          active: true,
-          updatedAt: serverTimestamp(),
-          createdAt: serverTimestamp(),
-          syncedFromTournament: true,
-          tournamentId: String(tournamentId || "").trim().toLowerCase(),
-        },
-        { merge: true }
-      );
-      okCount++;
-    } catch (e) {
-      ngCount++;
-      console.warn("propagate failed:", { matchId: m.id, code: e?.code, message: e?.message });
-    }
-  }
-
-  return { targets: targets.length, ok: okCount, ng: ngCount };
-}
-
-async function propagateManyPlayersToTournamentMatches({ tournamentId, teamUid, rows }) {
-  // 先に対象試合を確定（クエリを1回にする）
-  const matches = await listMatchesByTournamentId(tournamentId);
-  const targets = matches.filter((m) => String(m.teamAUid || "") === teamUid || String(m.teamBUid || "") === teamUid);
-
-  // 書き込み回数が多いので、なるべく batch を使う（最大500）
-  // rows * targets が 500 を超えやすいので、分割コミットする
-  let ok = 0;
-  let ng = 0;
-
-  let batch = writeBatch(db);
-  let batchOps = 0;
-
-  const commitIfNeeded = async (force = false) => {
-    if (batchOps >= 450 || (force && batchOps > 0)) {
-      try {
-        await batch.commit();
-        ok += batchOps;
-      } catch (e) {
-        // commit 全体が落ちる場合はカウントを ng に寄せる
-        ng += batchOps;
-        console.warn("batch commit failed:", e?.code, e?.message);
-      } finally {
-        batch = writeBatch(db);
-        batchOps = 0;
-      }
-    }
-  };
-
-  for (const r of rows) {
-    const key = normalizePlayerNumberKey(r.number);
-    const name = String(r.name || "").trim();
-    if (!key || !name) continue;
-
-    // 1) 大会マスタは setDoc(merge)（docId=背番号キー）
-    //    旧random doc は消さない（読み込み側が対応）
-    batch.set(
-      tournamentTeamPlayerRef(tournamentId, teamUid, key),
-      {
-        number: key,
-        name,
-        active: true,
-        updatedAt: serverTimestamp(),
-        createdAt: serverTimestamp(),
-      },
-      { merge: true }
-    );
-    batchOps++;
-    await commitIfNeeded(false);
-
-    // 2) 試合側へ展開（docId=背番号キー）
-    for (const m of targets) {
-      batch.set(
-        matchPlayerRef(m.id, teamUid, key),
-        {
-          number: key,
-          name,
-          active: true,
-          updatedAt: serverTimestamp(),
-          createdAt: serverTimestamp(),
-          syncedFromTournament: true,
-          tournamentId: String(tournamentId || "").trim().toLowerCase(),
-        },
-        { merge: true }
-      );
-      batchOps++;
-      await commitIfNeeded(false);
-    }
-  }
-
-  await commitIfNeeded(true);
-  return { matches: targets.length, ok, ng };
-}
-
-// ======================
-// 代表者：大会マスタ画面
+// 代表者：大会マスタ単独画面
 // ======================
 function renderRegistryList() {
   if (!registryPlayersListEl) return;
@@ -1274,40 +1343,16 @@ function renderRegistryList() {
         const name = prompt("名前:", p.name || "");
         if (name == null) return;
 
-        const nk = normalizePlayerNumberKey(number);
-        if (!nk || !String(name).trim()) return alert("背番号と名前を入力してください。");
-
-        // 1) 大会マスタ：背番号キーで setDoc(merge)
-        await setDoc(
-          tournamentTeamPlayerRef(registryTournamentId, user.uid, nk),
-          {
-            number: nk,
-            name: String(name).trim(),
-            active: true,
-            updatedAt: serverTimestamp(),
-            createdAt: serverTimestamp(),
-          },
-          { merge: true }
-        );
-
-        // 2) 大会に含まれる試合すべてへ反映（未公開含む）
-        await propagateOnePlayerToTournamentMatches({
-          tournamentId: registryTournamentId,
-          teamUid: user.uid,
-          numberKey: nk,
-          name: String(name).trim(),
+        await updateDoc(tournamentTeamPlayerRef(registryTournamentId, user.uid, pid), {
+          number: number.trim(),
+          name: name.trim(),
+          updatedAt: serverTimestamp(),
         });
-
-        // 旧random doc だったら削除（任意）
-        if (pid !== nk) {
-          try { await deleteDoc(doc(db, "tournaments", registryTournamentId, "teams", user.uid, "players", pid)); } catch {}
-        }
       }
 
       if (action === "delete") {
         if (!confirm("削除しますか？")) return;
-        await deleteDoc(doc(db, "tournaments", registryTournamentId, "teams", user.uid, "players", pid));
-        // ※削除を試合へ反映する仕様は未実装（必要なら追加可能）
+        await deleteDoc(tournamentTeamPlayerRef(registryTournamentId, user.uid, pid));
       }
     } catch (err) {
       alert(`操作失敗\n${err.code || ""}\n${err.message || err}`);
@@ -1315,7 +1360,6 @@ function renderRegistryList() {
     }
   };
 }
-
 async function loadRegistry(tournamentId) {
   const user = auth.currentUser;
   if (!user) return alert("ログインしてください。");
@@ -1346,60 +1390,34 @@ registryClearSearchBtn?.addEventListener("click", () => {
   if (registrySearchEl) registrySearchEl.value = "";
   renderRegistryList();
 });
-
 loadRegistryBtn?.addEventListener("click", async () => {
   const tid = registryTournamentSelectEl?.value || "";
   await loadRegistry(tid);
 });
-
 registryAddPlayerBtn?.addEventListener("click", async () => {
   const user = auth.currentUser;
   if (!user) return alert("ログインしてください。");
   if (!registryTournamentId) return alert("先に大会を読み込んでください。");
 
-  const number = normalizePlayerNumberKey(registryPlayerNumberEl?.value || "");
+  const number = String(registryPlayerNumberEl?.value || "").trim();
   const name = String(registryPlayerNameEl?.value || "").trim();
   if (!number || !name) return alert("背番号と選手名を入力してください。");
 
   try {
-    // 1) 大会マスタへ setDoc(merge)（背番号キー）
-    await setDoc(
-      tournamentTeamPlayerRef(registryTournamentId, user.uid, number),
-      {
-        number,
-        name,
-        active: true,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      },
-      { merge: true }
-    );
-
-    // 2) 大会に含まれる試合すべてへ反映（未公開含む）
-    const r = await propagateOnePlayerToTournamentMatches({
-      tournamentId: registryTournamentId,
-      teamUid: user.uid,
-      numberKey: number,
-      name,
+    await addDoc(tournamentTeamPlayersCol(registryTournamentId, user.uid), {
+      number, name, active: true, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
     });
-
     if (registryPlayerNumberEl) registryPlayerNumberEl.value = "";
     if (registryPlayerNameEl) registryPlayerNameEl.value = "";
     registryPlayerNumberEl?.focus?.();
-
-    // 軽いフィードバック（うるさくならない程度）
-    console.log("propagate result:", r);
   } catch (e) {
-    alert(`追加失敗\n${e.code || ""}\n${e.message || e}`);
+    alert(`追加失敗\n${e.code}\n${e.message}`);
     console.error(e);
   }
 });
-
-// Enterキーでも追加（名前欄でEnter）
 registryPlayerNameEl?.addEventListener("keydown", (e) => {
   if (e.key === "Enter") registryAddPlayerBtn?.click();
 });
-
 registryBulkAddBtn?.addEventListener("click", async () => {
   const user = auth.currentUser;
   if (!user) return alert("ログインしてください。");
@@ -1409,17 +1427,14 @@ registryBulkAddBtn?.addEventListener("click", async () => {
   if (rows.length === 0) return alert("形式が不正です。例：12,山田太郎");
 
   try {
-    // 大会マスタ＆大会内全試合へまとめて反映
-    const res = await propagateManyPlayersToTournamentMatches({
-      tournamentId: registryTournamentId,
-      teamUid: user.uid,
-      rows,
-    });
-
+    for (const r of rows) {
+      await addDoc(tournamentTeamPlayersCol(registryTournamentId, user.uid), {
+        number: r.number, name: r.name, active: true, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+      });
+    }
     if (registryBulkEl) registryBulkEl.value = "";
-    console.log("bulk propagate:", res);
   } catch (e) {
-    alert(`一括追加失敗\n${e.code || ""}\n${e.message || e}`);
+    alert(`一括追加失敗\n${e.code}\n${e.message}`);
     console.error(e);
   }
 });
@@ -1493,8 +1508,7 @@ createMatchBtn?.addEventListener("click", async () => {
       teamAName,
       teamBName,
       timer: { status: "stopped", baseMs: 0, startedAt: null },
-      // 公開設定は別タスクで増やす想定。既存互換のため初期は公開扱いにしないなら false に変えてOK
-      published: true,
+      isPublic: false, // ★初期は非公開（未設定なら非公開扱いでもOKだが明示）
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
@@ -1530,13 +1544,18 @@ createMatchBtn?.addEventListener("click", async () => {
     const msg = `作成完了：${title}
 matchId=${matchDocRef.id}
 joinCode=${joinCode}
-tournamentId=${tournamentId}
-招待：${teamAEmail}, ${teamBEmail}`;
+tournamentId=${tournamentId}`;
     if (adminInfoEl) adminInfoEl.textContent = msg;
 
-    alert(`試合作成OK\n${title}\n大会：${tournamentId}\njoinCode: ${joinCode}\n※チーム側はログイン後に試合一覧へ反映されます。`);
+    alert(`試合作成OK\n${title}\n大会：${tournamentId}\njoinCode: ${joinCode}`);
 
-    if (isAdminUser) await renderAdminAllMatches();
+    if (isAdminUser) {
+      // 作成後は試合一覧へ戻して見えるように
+      showMatchesScreen();
+      matchesAdminBlock && (matchesAdminBlock.style.display = "block");
+      await renderAdminAllMatches();
+    }
+
     if (adminNewTournamentIdEl) adminNewTournamentIdEl.value = "";
   } catch (e) {
     const msg = e?.message || `${e}`;
@@ -1640,6 +1659,16 @@ async function showPostLoginUI(user) {
   showRepHome();
 }
 
+// ======================
+// ★追加：管理者試合一覧 上部ボタン動作
+// ======================
+adminMatchesBackBtn?.addEventListener("click", () => {
+  showRepHome();
+});
+adminOpenCreateMatchBtn?.addEventListener("click", () => {
+  showAdminCreateMatchScreen();
+});
+
 // 代表者ホーム導線
 openPlayerRegistryBtn?.addEventListener("click", () => {
   showPlayerRegistryScreen();
@@ -1679,7 +1708,7 @@ goToMatchesBtn?.addEventListener("click", async () => {
 });
 
 // ======================
-// Auth UI
+// Auth UI（入力メールを小文字化）
 // ======================
 signupBtn?.addEventListener("click", async () => {
   const emailRaw = (emailEl?.value || "");
