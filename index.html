@@ -1,147 +1,329 @@
-// Firestore Rules（全文置換：P1＝全ログインユーザー閲覧を実現）
-//
-// 重要：このルールは「全ログインユーザーが events/match を読める」設計です。
-// 書き込みは原則「作成者（teamId==uid）だけ」に制限して事故を防ぎます。
-// ※必要に応じて「match 作成/更新/削除は管理者のみ」は維持
+<!-- index.html（全文置換） -->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Wanabee Players Stats</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+    .hint { opacity:.8; font-size: 0.9em; }
+    .ghost { opacity:.85; }
+    .timer { font-size: 32px; font-weight: 700; }
+    .card { max-width: 900px; margin: 16px auto; padding: 16px; border: 1px solid #ddd; border-radius: 12px; }
+    .ok-btn { filter: saturate(1.2); font-weight: 700; }
+    textarea { padding: 8px; }
+    input, select { padding: 8px; }
+    button { padding: 8px 12px; cursor:pointer; }
+    button[disabled] { opacity: .45; cursor: not-allowed; }
+    hr { margin: 16px 0; }
+    ul { padding-left: 18px; }
 
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-
-    // ----------------------
-    // helpers
-    // ----------------------
-    function isAuthed() { return request.auth != null; }
-    function myUid() { return request.auth.uid; }
-
-    function isGlobalAdmin() {
-      return isAuthed()
-        && exists(/databases/$(database)/documents/admins/$(myUid()));
+    /* score header (screenshot-ish) */
+    .score-header {
+      display: grid;
+      grid-template-columns: 1fr 80px 140px 80px 1fr;
+      align-items: center;
+      gap: 10px;
+      margin-top: 10px;
+      margin-bottom: 10px;
+    }
+    .team-name {
+      font-weight: 800;
+      font-size: 18px;
+      text-align: center;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .score-num {
+      font-weight: 900;
+      font-size: 22px;
+      text-align: center;
+    }
+    .timer-box {
+      font-weight: 900;
+      font-size: 22px;
+      text-align: center;
     }
 
-    // 試合参加者（入力できる人）判定
-    function isParticipant(matchId) {
-      return isAuthed()
-        && exists(/databases/$(database)/documents/matches/$(matchId)/memberships/$(myUid()));
+    .events-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-top: 8px;
     }
-
-    // ----------------------
-    // admins
-    // ----------------------
-    match /admins/{uid} {
-      allow read: if isAuthed() && myUid() == uid;
-      allow write: if false;
+    .events-col h4 {
+      margin: 0 0 8px;
+      text-align: center;
     }
-
-    // ----------------------
-    // users（emailLower で検索するため）
-    // ----------------------
-    match /users/{uid} {
-      allow read: if isAuthed();                 // 管理者のメール検索のため read を許可
-      allow create, update: if isAuthed() && myUid() == uid; // 自分だけ書ける
-      allow delete: if false;
+    .event-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 8px 0;
+      border-bottom: 1px solid #eee;
     }
-
-    // ----------------------
-    // joinCodes
-    // ----------------------
-    match /joinCodes/{code} {
-      allow read: if isAuthed();
-      allow create, update, delete: if isGlobalAdmin();
+    .event-text {
+      flex: 1;
+      line-height: 1.4;
+      white-space: pre-wrap;
     }
-
-    // ----------------------
-    // invites
-    //  - Admin: CRUD
-    //  - Team: 自分宛のみ read
-    // ----------------------
-    match /invites/{inviteId} {
-      allow read, create, update, delete: if isGlobalAdmin();
-
-      allow read: if isAuthed()
-        && resource.data.teamUid is string
-        && resource.data.teamUid == myUid();
-
-      allow create, update, delete: if false;
+    .event-actions {
+      display: flex;
+      gap: 6px;
+      white-space: nowrap;
     }
+  </style>
+</head>
+<body>
+  <h1>Wanabee Players Stats</h1>
 
-    // ----------------------
-    // tournaments（既存方針維持）
-    // ----------------------
-    match /tournaments/{tournamentId} {
-      allow read: if isAuthed();
-      allow create, update, delete: if isGlobalAdmin();
+  <!-- ログイン -->
+  <section id="login-section" class="card">
+    <h2>ログイン</h2>
+    <input type="email" id="email" placeholder="メールアドレス" autocomplete="email" />
+    <input type="password" id="password" placeholder="パスワード" autocomplete="current-password" />
+    <div class="row">
+      <button id="login-btn">ログイン</button>
+      <button id="signup-btn">新規登録</button>
+      <button id="logout-btn" class="ghost" style="display:none;">ログアウト</button>
+    </div>
+    <p id="login-status" class="hint"></p>
+  </section>
 
-      match /teams/{teamId} {
-        allow read: if isAuthed(); // 参照だけなら全員可でもよいが、必要なら制限してください
-        allow create, update, delete: if isGlobalAdmin();
+  <!-- UID確認（初回のみ） ※ユーザー指定のスニペットを採用 -->
+  <section id="uid-verify-section" class="card" style="display:none;">
+    <h2>UID確認</h2>
+    <p class="hint">
+      表示中のUIDを、入力欄に正確に入力してください（大文字小文字を区別します）。
+    </p>
+    <div class="hint">表示中のUID</div>
+    <div id="uid-display" style="font-weight:800; font-size: 18px; margin: 6px 0 10px;"></div>
+    <input id="uid-input" type="text" placeholder="ここにUIDを入力" style="width:100%; max-width:680px;" />
+    <p id="uid-hint" class="hint" style="display:none; color:#c00; margin-top:8px;">
+      表示中の文字列と一致すると認証できます
+    </p>
+    <div class="row" style="margin-top:10px;">
+      <button id="uid-verify-btn" disabled>認証</button>
+    </div>
+  </section>
 
-        match /players/{playerId} {
-          allow read: if isAuthed();
-          allow create, update, delete: if isAuthed() && myUid() == teamId;
-        }
-      }
-    }
+  <!-- 代表者ホーム -->
+  <section id="rep-home-section" class="card" style="display:none;">
+    <h2>代表者メニュー</h2>
+    <div class="row">
+      <button id="open-player-registry-btn">選手登録（大会マスタ）</button>
+      <button id="open-matches-btn" class="ghost">試合一覧</button>
+    </div>
+    <p class="hint" style="margin-top:10px;">
+      「選手登録（大会マスタ）」は大会単位で名簿を作成します。試合ごとに反映したい場合は、各試合の「選手管理」からコピーしてください。
+    </p>
+  </section>
 
-    // ----------------------
-    // matches（P1：全ログインユーザーが参照）
-    // ----------------------
-    match /matches/{matchId} {
+  <!-- 代表者：選手登録（大会マスタ） -->
+  <section id="player-registry-section" class="card" style="display:none;">
+    <h2>代表者：選手登録（大会マスタ）</h2>
 
-      // 作成/更新/削除は管理者のみ
-      allow create, update, delete: if isGlobalAdmin();
+    <div class="row">
+      <button id="back-to-home-btn" class="ghost">← メニューに戻る</button>
+      <button id="go-to-matches-btn" class="ghost">試合一覧へ</button>
+    </div>
 
-      // 参照は全ログインユーザー
-      allow read: if isAuthed();
+    <hr />
 
-      // memberships
-      // - 参照は全ログインユーザー（チーム名表示のため）
-      // - 作成は admin または 自分の team membership（inviteId 必須）
-      // - 更新/削除は admin のみ
-      match /memberships/{uid} {
-        allow read: if isAuthed();
+    <h3>大会ID（tournamentId）を指定</h3>
+    <p class="hint">例：2025spring、wuc2026、など（あなたが決めた文字列でOK）</p>
+    <div class="row">
+      <input type="text" id="registry-tournament-id" placeholder="tournamentId を入力" style="min-width:280px;" />
+      <button id="load-registry-btn">読み込む</button>
+    </div>
+    <p id="registry-context" class="hint"></p>
 
-        allow create: if isGlobalAdmin()
-          || (isAuthed()
-            && myUid() == uid
-            && request.resource.data.role == "team"
-            && request.resource.data.inviteId is string
-          );
+    <hr />
 
-        allow update, delete: if isGlobalAdmin();
-      }
+    <h3>個別追加</h3>
+    <div class="row">
+      <input type="text" id="registry-player-number" placeholder="背番号（例：12）" />
+      <input type="text" id="registry-player-name" placeholder="選手名（例：山田 太郎）" style="min-width:240px;" />
+      <button id="registry-add-player-btn">追加</button>
+    </div>
 
-      // teams/{teamId}/players
-      // - read: 全ログインユーザー（ログ表示で名前/背番号を引くため）
-      // - write: チーム本人（参加者）または admin
-      match /teams/{teamId}/players/{playerId} {
-        allow read: if isAuthed();
-        allow create, update, delete: if (isAuthed() && myUid() == teamId && isParticipant(matchId)) || isGlobalAdmin();
-      }
+    <h3>一括追加（背番号,名前）</h3>
+    <textarea id="registry-bulk" rows="6" style="width:100%;" placeholder="例：
+12,山田太郎
+7,佐藤花子
+"></textarea>
+    <div class="row">
+      <button id="registry-bulk-add-btn">一括追加</button>
+    </div>
 
-      // events
-      // - read: 全ログインユーザー
-      // - create: 参加者で、自分が作成者、teamId==自分
-      // - update/delete: admin または 作成者本人
-      match /events/{eventId} {
-        allow read: if isAuthed();
+    <hr />
 
-        allow create: if isParticipant(matchId)
-          && request.resource.data.createdBy == myUid()
-          && request.resource.data.teamId == myUid()
-          && request.resource.data.type in ["goal", "callahan"]
-          && request.resource.data.timeMs is int;
+    <h3>登録済み（編集・削除）</h3>
+    <div class="row">
+      <input type="text" id="registry-search" placeholder="検索（背番号/名前）" style="min-width:240px;" />
+      <button id="registry-clear-search-btn" class="ghost">クリア</button>
+    </div>
+    <ul id="registry-players-list"></ul>
+  </section>
 
-        allow update: if isGlobalAdmin()
-          || (isParticipant(matchId)
-            && resource.data.createdBy == myUid()
-            && request.resource.data.createdBy == resource.data.createdBy
-            && request.resource.data.type in ["goal", "callahan"]
-          );
+  <!-- 管理者：試合作成（管理者のみ表示） -->
+  <section id="admin-section" class="card" style="display:none;">
+    <h2>管理者：試合作成</h2>
+    <p class="hint">「チーム名×2」「代表者メール×2」を入力すると、試合作成＋招待（invites）を自動で作ります。</p>
 
-        allow delete: if isGlobalAdmin()
-          || (isParticipant(matchId) && resource.data.createdBy == myUid());
-      }
-    }
-  }
-}
+    <div class="row">
+      <input type="text" id="team-a-name" placeholder="チーム名A（例：Tokyo A）" style="min-width:220px;" />
+      <input type="text" id="team-b-name" placeholder="チーム名B（例：Tokyo C）" style="min-width:220px;" />
+    </div>
+
+    <div class="row">
+      <input type="email" id="team-a-email" placeholder="チームA代表者メール" style="min-width:260px;" />
+      <input type="email" id="team-b-email" placeholder="チームB代表者メール" style="min-width:260px;" />
+      <button id="create-match-btn">試合を作成</button>
+    </div>
+
+    <p id="admin-info" class="hint"></p>
+  </section>
+
+  <!-- 試合一覧（全ログインユーザーが見れる） -->
+  <section id="matches-section" class="card" style="display:none;">
+    <h2>試合一覧</h2>
+
+    <p class="hint">
+      代表者：招待された試合はここに表示されます。<br/>
+      管理者：全試合をここから参照できます。
+    </p>
+
+    <h3>招待された試合（代表者）</h3>
+    <ul id="matches-list"></ul>
+
+    <hr />
+
+    <h3>全試合（管理者）</h3>
+    <ul id="admin-matches-list"></ul>
+  </section>
+
+  <!-- チーム管理者：選手管理（試合単位） -->
+  <section id="team-admin-section" class="card" style="display:none;">
+    <h2>チーム管理者：選手管理（試合単位）</h2>
+
+    <div class="row">
+      <button id="back-to-matches-from-admin-btn" class="ghost">← 試合一覧に戻る</button>
+      <button id="go-to-score-from-admin-btn">試合入力へ</button>
+    </div>
+
+    <p id="team-admin-context" class="hint"></p>
+
+    <hr />
+
+    <h3>大会単位：選手マスタ（共有）</h3>
+    <p class="hint">
+      この大会の選手情報を編集します。試合開始前に登録して、「試合へコピー」を押してください。
+    </p>
+
+    <div class="row">
+      <button id="copy-tournament-to-match-btn" class="ghost">選手情報をこの試合へコピー</button>
+      <button id="clear-match-players-btn" class="ghost">この試合の選手を全削除</button>
+    </div>
+
+    <h4>大会マスタ：一括登録（背番号,名前）</h4>
+    <textarea id="bulk-tournament-players" rows="6" style="width:100%;" placeholder="例：
+12,山田太郎
+7,佐藤花子
+"></textarea>
+    <div class="row">
+      <button id="bulk-add-tournament-btn">チームへ一括追加</button>
+    </div>
+
+    <h4>大会マスタ：個別追加</h4>
+    <div class="row">
+      <input type="text" id="tournament-player-number" placeholder="背番号（例：12）" />
+      <input type="text" id="tournament-player-name" placeholder="名前（例：山田 太郎）" />
+      <button id="add-tournament-player-btn">追加</button>
+    </div>
+
+    <h4>大会マスタ：登録済み（編集・削除）</h4>
+    <ul id="tournament-players-list"></ul>
+
+    <hr />
+
+    <h3>試合単位：選手リスト（この試合で使用）</h3>
+    <p class="hint">
+      試合中の編集も可能です。選手情報の内容を反映したい場合は「選手情報をこの試合へコピー」を使用してください。
+    </p>
+
+    <h4>この試合：一括登録（背番号,名前）</h4>
+    <textarea id="bulk-match-players" rows="6" style="width:100%;" placeholder="例：
+12,山田太郎
+7,佐藤花子
+"></textarea>
+    <div class="row">
+      <button id="bulk-add-match-btn">この試合へ一括追加</button>
+    </div>
+
+    <h4>この試合：個別追加</h4>
+    <div class="row">
+      <input type="text" id="match-player-number" placeholder="背番号（例：12）" />
+      <input type="text" id="match-player-name" placeholder="名前（例：山田 太郎）" />
+      <button id="add-match-player-btn">追加</button>
+    </div>
+
+    <h4>この試合：登録済み（編集・削除）</h4>
+    <ul id="match-players-list"></ul>
+  </section>
+
+  <!-- 試合入力 -->
+  <section id="score-section" class="card" style="display:none;">
+    <h2>試合入力</h2>
+
+    <div class="row">
+      <button id="back-to-matches-btn" class="ghost">← 試合一覧に戻る</button>
+      <button id="open-team-admin-btn" class="ghost">選手管理を開く</button>
+    </div>
+
+    <div class="row" style="margin-top:8px;">
+      <select id="player-select">
+        <option value="">選手を選択</option>
+      </select>
+      <!-- assist-select は app.js が追加 -->
+      <button id="start-timer-btn">タイマー開始</button>
+      <button id="reset-timer-btn" class="ghost">リセット</button>
+      <!-- stop は app.js が追加 -->
+    </div>
+
+    <!-- スクショ寄せ：スコアヘッダ -->
+    <div class="score-header">
+      <div id="team-left-name" class="team-name">Team A</div>
+      <div id="score-left" class="score-num">0</div>
+      <div id="timer" class="timer-box">00:00</div>
+      <div id="score-right" class="score-num">0</div>
+      <div id="team-right-name" class="team-name">Team B</div>
+    </div>
+
+    <div class="row">
+      <button id="record-score-btn">ゴール</button>
+      <button id="record-callahan-btn" class="ghost">キャナハン</button>
+      <!-- ブロックは削除 -->
+    </div>
+
+    <h3 style="margin-top:14px;">試合記録</h3>
+
+    <div class="events-grid">
+      <div class="events-col">
+        <h4 id="events-left-title">Team A</h4>
+        <div id="events-left"></div>
+      </div>
+      <div class="events-col">
+        <h4 id="events-right-title">Team B</h4>
+        <div id="events-right"></div>
+      </div>
+    </div>
+  </section>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
