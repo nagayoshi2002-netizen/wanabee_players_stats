@@ -1205,7 +1205,7 @@ async function openTeamAdmin(matchId) {
 
   const title = (m.title || "Untitled Match").trim();
   const tour = currentTournamentId ? currentTournamentId : "（未設定）";
-  if (teamAdminContextEl) teamAdminContextEl.textContent = `対象試合：${title} / tournamentId: ${tour}`;
+  if (teamAdminContextEl) teamAdminContextEl.textContent = `対象試合：${title}`;
 
   backToMatchesFromAdminBtn && (backToMatchesFromAdminBtn.onclick = async () => {
     showMatchesScreen();
@@ -1890,3 +1890,4 @@ onAuthStateChanged(auth, async (user) => {
 
   await showPostLoginUI(user);
 });
+
