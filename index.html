@@ -69,89 +69,100 @@
     </div>
   </section>
 
+  <!-- Admin登録（招待URLでのみ表示） -->
+  <section id="admin-register-section" class="card" style="display:none;">
+    <h2 class="section-title">Admin登録</h2>
+    <p class="hint">
+      これは管理者から共有された専用URLでのみ表示されます。ログイン後に「登録」を押すと管理者権限が付与されます。
+    </p>
+
+    <p id="admin-register-context" class="hint"></p>
+
+    <div class="row" style="margin-top:10px;">
+      <button id="admin-register-btn" class="btn">登録（即Admin化）</button>
+      <button id="admin-register-cancel-btn" class="btn ghost">キャンセル</button>
+    </div>
+
+    <p id="admin-register-status" class="hint"></p>
+  </section>
+
   <!-- 代表者ホーム -->
   <section id="rep-home-section" class="card" style="display:none;">
-    <h2 class="section-title">代表者メニュー</h2>
+    <h2 class="section-title">メニュー</h2>
     <div class="row">
-      <button id="open-player-registry-btn" class="btn">選手登録（大会マスタ）</button>
+      <button id="open-tournament-master-btn" class="btn">大会マスタ（選手登録）</button>
       <button id="open-matches-btn" class="btn ghost">参加試合一覧</button>
     </div>
 
     <p class="hint" style="margin-top:10px;">
-      「選手登録（大会マスタ）」は大会単位で名簿を作成します。<br/>
-      今回の更新で「出場する試合」を選んで登録すると、その試合の選手にも自動で追加されます。
+      大会マスタは「試合を選んで」登録します。登録した選手は、その試合へ自動で追加されます。
     </p>
   </section>
 
-  <!-- 代表者：選手登録（大会マスタ） -->
-  <section id="player-registry-section" class="card" style="display:none;">
-    <h2 class="section-title">代表者：選手登録（大会マスタ）</h2>
+  <!-- 大会マスタ（試合選択 → 登録 → 試合へ自動追加） -->
+  <section id="tournament-master-section" class="card" style="display:none;">
+    <h2 class="section-title">大会マスタ（選手登録）</h2>
 
     <div class="row">
-      <button id="back-to-home-btn" class="btn ghost">← メニューに戻る</button>
-      <button id="go-to-matches-btn" class="btn ghost">参加試合一覧へ</button>
+      <button id="back-to-home-from-master-btn" class="btn ghost">← メニューに戻る</button>
+      <button id="go-to-matches-from-master-btn" class="btn ghost">参加試合一覧へ</button>
     </div>
 
     <hr class="sep" />
 
-    <h3 class="subhead">大会ID（tournamentId）を選択</h3>
-    <p class="hint">大会は全体共通の一覧から選びます（管理者が作成/登録）。</p>
+    <h3 class="subhead">対象試合を選択</h3>
+    <p class="hint">この画面で登録した選手は、選択した試合に自動で追加されます。</p>
 
     <div class="row">
-      <select id="registry-tournament-select" class="select" style="min-width:260px;">
-        <option value="">大会を選択</option>
+      <select id="master-match-select" class="select" style="min-width:320px;">
+        <option value="">試合を選択</option>
       </select>
-      <button id="load-registry-btn" class="btn">読み込む</button>
+
+      <!-- Adminのみ表示：どちらのチームの名簿を触るか -->
+      <select id="master-team-select" class="select" style="min-width:220px; display:none;">
+        <option value="">（Admin）チームを選択</option>
+      </select>
+
+      <button id="master-load-btn" class="btn">読み込む</button>
     </div>
 
-    <h3 class="subhead" style="margin-top:14px;">出場する試合を選択（任意）</h3>
-    <p class="hint">
-      ここで試合を選択して登録すると、その試合（match）にも選手が自動追加されます。
-    </p>
-
-    <div class="row">
-      <select id="registry-match-select" class="select" style="min-width:360px;">
-        <option value="">（試合を選択しない：大会マスタのみ）</option>
-      </select>
-    </div>
-
-    <p id="registry-context" class="hint"></p>
+    <p id="master-context" class="hint"></p>
 
     <hr class="sep" />
 
     <h3 class="subhead">個別追加</h3>
     <div class="row">
-      <input type="text" id="registry-player-number" placeholder="背番号（例：12）" />
-      <input type="text" id="registry-player-name" placeholder="選手名（例：山田 太郎）" style="min-width:240px;" />
-      <button id="registry-add-player-btn" class="btn">追加</button>
+      <input type="text" id="master-player-number" placeholder="背番号（例：12）" />
+      <input type="text" id="master-player-name" placeholder="選手名（例：山田 太郎）" style="min-width:240px;" />
+      <button id="master-add-player-btn" class="btn">追加（試合へ自動反映）</button>
     </div>
 
     <h3 class="subhead">一括追加（背番号,名前）</h3>
-    <textarea id="registry-bulk" rows="6" style="width:100%;" placeholder="例：
+    <textarea id="master-bulk" rows="6" style="width:100%;" placeholder="例：
 12,山田太郎
 7,佐藤花子
 "></textarea>
     <div class="row">
-      <button id="registry-bulk-add-btn" class="btn">一括追加</button>
+      <button id="master-bulk-add-btn" class="btn">一括追加（試合へ自動反映）</button>
     </div>
 
     <hr class="sep" />
 
-    <h3 class="subhead">登録済み（編集・削除）</h3>
+    <h3 class="subhead">登録済み（削除のみ）</h3>
     <div class="row">
-      <input type="text" id="registry-search" placeholder="検索（背番号/名前）" style="min-width:240px;" />
-      <button id="registry-clear-search-btn" class="btn ghost">クリア</button>
+      <input type="text" id="master-search" placeholder="検索（背番号/名前）" style="min-width:240px;" />
+      <button id="master-clear-search-btn" class="btn ghost">クリア</button>
     </div>
 
-    <ul id="registry-players-list" class="list"></ul>
+    <ul id="master-players-list" class="list"></ul>
   </section>
 
-  <!-- 管理者：試合作成 -->
+  <!-- 管理者：試合作成（大会名で運用） -->
   <section id="admin-section" class="card" style="display:none;">
     <h2 class="section-title">管理者：試合作成</h2>
 
     <p class="hint">
-      「チーム名×2」「代表者メール×2」「大会種別（選択 or 新規作成）」を入力すると、
+      「チーム名×2」「代表者メール×2」「大会（大会名ベース）」を入力すると、
       試合作成＋招待（invites）を自動作成します。
     </p>
 
@@ -167,17 +178,26 @@
         <input type="email" id="team-b-email" placeholder="チームB代表者メール" style="min-width:260px;" />
       </div>
 
-      <div class="row">
-        <select id="admin-tournament-select" class="select" style="min-width:260px;">
-          <option value="">大会種別（選択）</option>
-        </select>
+      <hr class="sep" />
 
-        <input type="text" id="admin-new-tournament-id" placeholder="新規作成（tournamentId）" style="min-width:240px;" />
+      <h3 class="subhead">大会（大会名）</h3>
+      <div class="row">
+        <select id="admin-tournament-select" class="select" style="min-width:320px;">
+          <option value="">大会を選択（既存）</option>
+        </select>
+      </div>
+
+      <div class="row">
+        <input type="text" id="admin-new-tournament-name" placeholder="新規作成：大会名（表示）" style="min-width:320px;" />
+        <input type="text" id="admin-new-tournament-id" placeholder="（任意）tournamentId（英数_ -）" style="min-width:280px;" />
+      </div>
+
+      <div class="row">
         <button id="create-match-btn" class="btn">作成</button>
       </div>
 
       <p class="hint">
-        tournamentId は <b>小文字化</b> して保存/参照します（例：2025spring）。
+        ※内部は tournamentId で管理します。新規作成時、tournamentId が空なら大会名から自動生成します。
       </p>
 
       <p id="admin-info" class="hint"></p>
@@ -187,6 +207,10 @@
   <!-- 試合一覧 -->
   <section id="matches-section" class="card" style="display:none;">
     <h2 class="section-title">試合一覧</h2>
+
+    <div class="row">
+      <button id="open-tournament-master-from-matches-btn" class="btn ghost">大会マスタ（選手登録）</button>
+    </div>
 
     <div id="matches-admin-block" style="display:none;">
       <h3 class="subhead">管理者：全試合</h3>
@@ -198,79 +222,14 @@
     <ul id="matches-list" class="list"></ul>
   </section>
 
-  <!-- チーム管理者：選手管理（試合単位） -->
-  <section id="team-admin-section" class="card" style="display:none;">
-    <h2 class="section-title">選手管理（試合単位）</h2>
-
-    <div class="row">
-      <button id="back-to-matches-from-admin-btn" class="btn ghost">← 試合一覧に戻る</button>
-      <button id="go-to-score-from-admin-btn" class="btn">試合入力に進む</button>
-    </div>
-
-    <p id="team-admin-context" class="hint"></p>
-
-    <hr class="sep" />
-
-    <h3 class="subhead">大会単位：選手マスタ（共有）</h3>
-    <p class="hint">試合開始前に登録して、「試合へコピー」を押してください。</p>
-
-    <div class="row">
-      <button id="copy-tournament-to-match-btn" class="btn ghost">選手情報をこの試合へコピー</button>
-      <button id="clear-match-players-btn" class="btn ghost">この試合の選手を全削除</button>
-    </div>
-
-    <h4 class="subsub">大会マスタ：一括登録（背番号,名前）</h4>
-    <textarea id="bulk-tournament-players" rows="6" style="width:100%;" placeholder="例：
-12,山田太郎
-7,佐藤花子
-"></textarea>
-    <div class="row">
-      <button id="bulk-add-tournament-btn" class="btn">チームへ一括追加</button>
-    </div>
-
-    <h4 class="subsub">大会マスタ：個別追加</h4>
-    <div class="row">
-      <input type="text" id="tournament-player-number" placeholder="背番号（例：12）" />
-      <input type="text" id="tournament-player-name" placeholder="名前（例：山田 太郎）" />
-      <button id="add-tournament-player-btn" class="btn">追加</button>
-    </div>
-
-    <h4 class="subsub">大会マスタ：登録済み（編集・削除）</h4>
-    <ul id="tournament-players-list" class="list"></ul>
-
-    <hr class="sep" />
-
-    <h3 class="subhead">試合単位：選手リスト（この試合で使用）</h3>
-    <p class="hint">試合中の編集も可能です。</p>
-
-    <h4 class="subsub">この試合：一括登録（背番号,名前）</h4>
-    <textarea id="bulk-match-players" rows="6" style="width:100%;" placeholder="例：
-12,山田太郎
-7,佐藤花子
-"></textarea>
-    <div class="row">
-      <button id="bulk-add-match-btn" class="btn">この試合へ一括追加</button>
-    </div>
-
-    <h4 class="subsub">この試合：個別追加</h4>
-    <div class="row">
-      <input type="text" id="match-player-number" placeholder="背番号（例：12）" />
-      <input type="text" id="match-player-name" placeholder="名前（例：山田 太郎）" />
-      <button id="add-match-player-btn" class="btn">追加</button>
-    </div>
-
-    <h4 class="subsub">この試合：登録済み（編集・削除）</h4>
-    <ul id="match-players-list" class="list"></ul>
-  </section>
-
   <!-- 試合入力（タイマーと得点は常に表示） -->
   <section id="score-section" class="card" style="display:none;">
     <h2 class="section-title">試合入力</h2>
 
     <div class="row">
       <button id="back-to-matches-btn" class="btn ghost">← 試合一覧に戻る</button>
-      <!-- 要件：スクショの「選手管理」ボタンは非表示（新機能で大会マスタから自動追加するため） -->
-      <!-- <button id="open-team-admin-btn" class="btn ghost">選手管理を開く</button> -->
+      <!-- 選手管理ボタンは要件により非表示 -->
+      <button id="open-team-admin-btn" class="btn ghost" style="display:none;">選手管理を開く</button>
     </div>
 
     <div class="row" style="margin-top:10px;">
