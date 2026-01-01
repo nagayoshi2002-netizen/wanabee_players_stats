@@ -78,7 +78,8 @@
     </div>
 
     <p class="hint" style="margin-top:10px;">
-      「選手登録（大会マスタ）」は大会単位で名簿を作成します。試合ごとに反映したい場合は、各試合の「選手管理」からコピーしてください。
+      「選手登録（大会マスタ）」は大会単位で名簿を作成します。<br/>
+      今回の更新で「出場する試合」を選んで登録すると、その試合の選手にも自動で追加されます。
     </p>
   </section>
 
@@ -102,6 +103,18 @@
       </select>
       <button id="load-registry-btn" class="btn">読み込む</button>
     </div>
+
+    <h3 class="subhead" style="margin-top:14px;">出場する試合を選択（任意）</h3>
+    <p class="hint">
+      ここで試合を選択して登録すると、その試合（match）にも選手が自動追加されます。
+    </p>
+
+    <div class="row">
+      <select id="registry-match-select" class="select" style="min-width:360px;">
+        <option value="">（試合を選択しない：大会マスタのみ）</option>
+      </select>
+    </div>
+
     <p id="registry-context" class="hint"></p>
 
     <hr class="sep" />
@@ -250,13 +263,14 @@
     <ul id="match-players-list" class="list"></ul>
   </section>
 
-  <!-- 試合入力（スクショレイアウト準拠：タイマーと得点は常に表示） -->
+  <!-- 試合入力（タイマーと得点は常に表示） -->
   <section id="score-section" class="card" style="display:none;">
     <h2 class="section-title">試合入力</h2>
 
     <div class="row">
       <button id="back-to-matches-btn" class="btn ghost">← 試合一覧に戻る</button>
-      <button id="open-team-admin-btn" class="btn ghost">選手管理を開く</button>
+      <!-- 要件：スクショの「選手管理」ボタンは非表示（新機能で大会マスタから自動追加するため） -->
+      <!-- <button id="open-team-admin-btn" class="btn ghost">選手管理を開く</button> -->
     </div>
 
     <div class="row" style="margin-top:10px;">
@@ -293,7 +307,6 @@
         </select>
       </div>
 
-      <!-- 得点入力ボタン：得点時刻（中央）列の下へ -->
       <div class="center-actions">
         <button id="record-goal-btn" class="btn">得点</button>
         <button id="record-callahan-btn" class="btn ghost">キャラハン</button>
