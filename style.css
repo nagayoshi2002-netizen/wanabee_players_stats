@@ -195,6 +195,7 @@ input:focus, select:focus, textarea:focus{
 
 .match-title{
   font-weight: 700;
+  font-size: 18px;
 }
 
 .match-actions{
@@ -320,3 +321,4 @@ input:focus, select:focus, textarea:focus{
     justify-content:flex-start;
   }
 }
+
