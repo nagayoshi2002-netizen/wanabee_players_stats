@@ -1,4 +1,4 @@
-<!-- index.html（全文置換） -->
+<!-- index.html（全文置換：管理者招待リンクUI追加） -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -6,7 +6,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>WANABEE</title>
 
-  <!-- Font: Source Serif Pro -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Source+Serif+Pro:wght@600;700;900&display=swap" rel="stylesheet">
@@ -14,7 +13,6 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <!-- Top bar -->
   <header class="topbar">
     <div class="brand" aria-label="WANABEE">WANABEE</div>
 
@@ -24,7 +22,6 @@
     </div>
   </header>
 
-  <!-- ログイン（最初の画面のみ表示：ログイン後は非表示） -->
   <section id="login-section" class="card">
     <h2 class="section-title">ログイン</h2>
 
@@ -48,7 +45,7 @@
     <p id="login-status" class="hint"></p>
   </section>
 
-  <!-- UID確認（初回のみ） ※ユーザー指定のHTMLを採用（微調整なし） -->
+  <!-- UID確認（初回のみ） -->
   <section id="uid-verify-section" class="card" style="display:none;">
     <h2>UID確認</h2>
     <p class="hint">
@@ -69,7 +66,6 @@
     </div>
   </section>
 
-  <!-- 代表者ホーム -->
   <section id="rep-home-section" class="card" style="display:none;">
     <h2 class="section-title">代表者メニュー</h2>
     <div class="row">
@@ -78,11 +74,10 @@
     </div>
 
     <p class="hint" style="margin-top:10px;">
-      「選手登録（大会マスタ）」は大会単位で名簿を作成します。試合ごとに反映したい場合は、各試合の「選手管理」からコピーしてください。
+      「選手登録（大会マスタ）」は大会単位で名簿を作成します。
     </p>
   </section>
 
-  <!-- 代表者：選手登録（大会マスタ） -->
   <section id="player-registry-section" class="card" style="display:none;">
     <h2 class="section-title">代表者：選手登録（大会マスタ）</h2>
 
@@ -133,7 +128,6 @@
     <ul id="registry-players-list" class="list"></ul>
   </section>
 
-  <!-- 管理者：試合作成 -->
   <section id="admin-section" class="card" style="display:none;">
     <h2 class="section-title">管理者：試合作成</h2>
 
@@ -146,55 +140,65 @@
       試合作成＋招待（invites）を自動作成します。
     </p>
 
-    <div class="admin-form">
-      <!-- A(名→メール) vs B(名→メール) -->
-      <div class="row" style="align-items:flex-end;">
-        <div style="flex:1; min-width:260px;">
-          <input type="text" id="team-a-name" placeholder="チーム名A（表示用）" />
-          <div style="height:10px;"></div>
-          <input type="email" id="team-a-email" placeholder="チームA代表者メール" />
-        </div>
-
-        <div class="vs" style="align-self:center;">vs</div>
-
-        <div style="flex:1; min-width:260px;">
-          <input type="text" id="team-b-name" placeholder="チーム名B（表示用）" />
-          <div style="height:10px;"></div>
-          <input type="email" id="team-b-email" placeholder="チームB代表者メール" />
-        </div>
+    <div class="row" style="align-items:flex-end;">
+      <div style="flex:1; min-width:260px;">
+        <input type="text" id="team-a-name" placeholder="チーム名A（表示用）" />
+        <div style="height:10px;"></div>
+        <input type="email" id="team-a-email" placeholder="チームA代表者メール" />
       </div>
 
-      <div class="row" style="margin-top:10px;">
-        <select id="admin-tournament-select" class="select" style="min-width:260px;">
-          <option value="">大会種別（選択）</option>
-        </select>
+      <div class="vs" style="align-self:center;">vs</div>
 
-        <input type="text" id="admin-new-tournament-id" placeholder="新規作成（tournamentId）" style="min-width:240px;" />
-        <button id="create-match-btn" class="btn">作成</button>
+      <div style="flex:1; min-width:260px;">
+        <input type="text" id="team-b-name" placeholder="チーム名B（表示用）" />
+        <div style="height:10px;"></div>
+        <input type="email" id="team-b-email" placeholder="チームB代表者メール" />
       </div>
-
-      <p class="hint">
-        tournamentId は <b>小文字化</b> して保存/参照します（例：2025spring）。
-      </p>
-
-      <p id="admin-info" class="hint"></p>
     </div>
+
+    <div class="row" style="margin-top:10px;">
+      <select id="admin-tournament-select" class="select" style="min-width:260px;">
+        <option value="">大会種別（選択）</option>
+      </select>
+
+      <input type="text" id="admin-new-tournament-id" placeholder="新規作成（tournamentId）" style="min-width:240px;" />
+      <button id="create-match-btn" class="btn">作成</button>
+    </div>
+
+    <p class="hint">
+      tournamentId は <b>小文字化</b> して保存/参照します（例：2025spring）。
+    </p>
+
+    <p id="admin-info" class="hint"></p>
   </section>
 
-  <!-- 試合一覧 -->
   <section id="matches-section" class="card" style="display:none;">
     <h2 class="section-title">試合一覧</h2>
 
-    <!-- 追加：戻るボタン（全員） -->
     <div class="row" style="margin-bottom:10px;">
       <button id="matches-back-to-home-btn" class="btn ghost">← 戻る</button>
-
-      <!-- 追加：試合作成（管理者のみ表示：JSで制御） -->
       <button id="matches-open-create-btn" class="btn" style="display:none;">試合作成</button>
     </div>
 
+    <!-- 管理者ブロック -->
     <div id="matches-admin-block" style="display:none;">
-      <h3 class="subhead">管理者：全試合</h3>
+      <div class="row" style="justify-content:space-between; align-items:center;">
+        <h3 class="subhead" style="margin:0;">管理者：全試合</h3>
+
+        <!-- ★追加：管理者招待リンク作成 -->
+        <button id="admin-invite-btn" class="btn ghost">管理者招待リンクを作成</button>
+      </div>
+
+      <!-- ★追加：生成された招待リンク表示 -->
+      <div id="admin-invite-box" style="display:none; margin-top:10px;">
+        <div class="hint">発行された招待リンク（1回限り）</div>
+        <div class="row">
+          <input id="admin-invite-url" type="text" readonly />
+          <button id="admin-invite-copy-btn" class="btn">コピー</button>
+        </div>
+        <p class="hint" style="margin-top:6px;">このリンクを開くと、ログイン済みユーザーが即Admin化されます。</p>
+      </div>
+
       <ul id="admin-matches-list" class="list"></ul>
       <hr class="sep" />
     </div>
@@ -203,7 +207,6 @@
     <ul id="matches-list" class="list"></ul>
   </section>
 
-  <!-- チーム管理者：選手管理（試合単位） -->
   <section id="team-admin-section" class="card" style="display:none;">
     <h2 class="section-title">選手管理（試合単位）</h2>
 
@@ -246,7 +249,6 @@
     <hr class="sep" />
 
     <h3 class="subhead">試合単位：選手リスト（この試合で使用）</h3>
-    <p class="hint">試合中の編集も可能です。</p>
 
     <h4 class="subsub">この試合：一括登録（背番号,名前）</h4>
     <textarea id="bulk-match-players" rows="6" style="width:100%;" placeholder="例：
@@ -268,7 +270,6 @@
     <ul id="match-players-list" class="list"></ul>
   </section>
 
-  <!-- 試合入力（スクショレイアウト準拠：タイマーと得点は常に表示） -->
   <section id="score-section" class="card" style="display:none;">
     <h2 class="section-title">試合入力</h2>
 
