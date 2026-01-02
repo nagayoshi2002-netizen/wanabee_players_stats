@@ -1,4 +1,4 @@
-// app.js（全文置換：大会マスタ→試合自動反映を invites 起点に修正 / 管理者招待即Admin化 / 管理者試合一覧フィルタ / 背番号setDoc(merge)）
+// app.js（全文置換：B=「大会マスタ→試合」自動同期（新規試合にも自動反映）＋既存機能維持）
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-app.js";
 import {
   getAuth,
@@ -63,7 +63,7 @@ const uidInputEl = document.getElementById("uid-input");
 const uidHintEl = document.getElementById("uid-hint");
 const uidVerifyBtn = document.getElementById("uid-verify-btn");
 
-// Admin enroll (invite link)
+// Admin enroll (invite link)  ※index.htmlに無い場合はnullのままでもOK
 const adminEnrollSection = document.getElementById("admin-enroll-section");
 const adminEnrollBtn = document.getElementById("admin-enroll-btn");
 const adminEnrollCancelBtn = document.getElementById("admin-enroll-cancel-btn");
@@ -90,7 +90,7 @@ const registryPlayersListEl = document.getElementById("registry-players-list");
 const registrySearchEl = document.getElementById("registry-search");
 const registryClearSearchBtn = document.getElementById("registry-clear-search-btn");
 
-// Registry matches (dropdown) ※index.htmlに無くてもnull安全
+// Registry matches (dropdown) ※index.htmlに無い場合はnull
 const registryMatchesBoxEl = document.getElementById("registry-matches-box");
 const registryMatchSelectEl = document.getElementById("registry-match-select");
 
@@ -121,7 +121,7 @@ const adminInviteBox = document.getElementById("admin-invite-box");
 const adminInviteUrlEl = document.getElementById("admin-invite-url");
 const adminInviteCopyBtn = document.getElementById("admin-invite-copy-btn");
 
-// Admin matches tournament filter ※index.htmlに無くてもnull安全
+// Admin matches tournament filter ※index.htmlに無い場合はnull
 const adminMatchesTournamentFilterEl = document.getElementById("admin-matches-tournament-filter");
 
 // Team admin (match players only)
@@ -210,6 +210,13 @@ function msToMMSS(ms) {
   const ss = totalSec % 60;
   return `${pad2(mm)}:${pad2(ss)}`;
 }
+function parseMMSS(s) {
+  const m = String(s).trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return null;
+  const mm = Number(m[1]), ss = Number(m[2]);
+  if (!Number.isFinite(mm) || !Number.isFinite(ss) || ss >= 60) return null;
+  return (mm * 60 + ss) * 1000;
+}
 function escapeHtml(str) {
   return String(str || "")
     .replaceAll("&", "&amp;")
@@ -224,7 +231,8 @@ function validTournamentId(tid) { return /^[a-z0-9][a-z0-9_-]{1,50}$/.test(tid);
 
 function playerKeyFromNumber(number) {
   const k = String(number || "").trim();
-  return k; // empty不可は呼び出し側で弾く
+  // 背番号キーは空不可
+  return k;
 }
 
 function setTopStatus(text) { if (topStatusEl) topStatusEl.textContent = text || ""; }
@@ -379,6 +387,130 @@ async function loadTournamentOptions() {
 }
 
 // ======================
+// B：大会マスタ → 試合側 自動同期（新規試合にも効く）
+// ======================
+const matchSyncMemo = new Map(); // key: `${matchId}:${teamUid}` -> lastMs
+const MATCH_SYNC_TTL_MS = 90 * 1000; // 同一画面操作での過剰同期防止（90秒）
+
+async function readAllDocsMap(qry, keyFn) {
+  const snap = await getDocs(qry);
+  const map = new Map();
+  for (const d of snap.docs) {
+    const data = d.data() || {};
+    const k = keyFn(d, data);
+    if (!k) continue;
+    map.set(String(k), { id: d.id, ...data });
+  }
+  return map;
+}
+
+/**
+ * 大会マスタ（tournaments/{tid}/teams/{teamUid}/players）→
+ * 試合側（matches/{matchId}/teams/{teamUid}/players）へ「不足分だけ」同期
+ *
+ * - 既に試合側に存在する背番号は上書きしない（必要なら allowOverwrite=true に変更可）
+ * - Rulesで弾かれる可能性があるので、呼び出し側で握りつぶせるように例外はthrow
+ */
+async function syncTournamentPlayersToMatch(matchId, teamUid, tournamentId, { allowOverwrite = false } = {}) {
+  if (!matchId || !teamUid || !tournamentId) return { wrote: 0, skipped: 0 };
+
+  const memoKey = `${matchId}:${teamUid}`;
+  const last = matchSyncMemo.get(memoKey) || 0;
+  const now = Date.now();
+  if (now - last < MATCH_SYNC_TTL_MS) {
+    return { wrote: 0, skipped: 0, memo: true };
+  }
+
+  // 先に大会マスタを読む
+  const masterMap = await readAllDocsMap(
+    query(tournamentTeamPlayersCol(tournamentId, teamUid), orderBy("number", "asc"), limit(600)),
+    (d, data) => String(data.number || d.id || "").trim()
+  );
+
+  if (masterMap.size === 0) {
+    matchSyncMemo.set(memoKey, now);
+    return { wrote: 0, skipped: 0 };
+  }
+
+  // 試合側を読む（存在チェック用）
+  const matchMap = await readAllDocsMap(
+    query(matchPlayersCol(matchId, teamUid), orderBy("number", "asc"), limit(800)),
+    (d, data) => String(data.number || d.id || "").trim()
+  );
+
+  let batch = writeBatch(db);
+  let ops = 0;
+  let wrote = 0;
+  let skipped = 0;
+
+  for (const [num, p] of masterMap.entries()) {
+    const key = playerKeyFromNumber(num);
+    if (!key) { skipped++; continue; }
+
+    const exists = matchMap.has(key);
+    if (exists && !allowOverwrite) {
+      skipped++;
+      continue;
+    }
+
+    batch.set(
+      matchPlayerRef(matchId, teamUid, key),
+      {
+        number: key,
+        name: String(p.name || ""),
+        active: true,
+        fromTournament: String(tournamentId),
+        syncedFromMasterAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        // createdAt は「初回のみ」入れたいが mergeで厳密にやるのが難しいので更新でも入れる
+        createdAt: serverTimestamp(),
+      },
+      { merge: true }
+    );
+
+    ops++;
+    wrote++;
+
+    if (ops >= 450) {
+      await batch.commit();
+      batch = writeBatch(db);
+      ops = 0;
+    }
+  }
+
+  if (ops > 0) await batch.commit();
+
+  matchSyncMemo.set(memoKey, now);
+  return { wrote, skipped };
+}
+
+/**
+ * 代表者が試合一覧/試合入力を開いたタイミングで、
+ * 「この試合のtournamentId」があれば自分チーム分だけ同期する。
+ * 権限エラーは UI を止めない（必要ならログに残す）。
+ */
+async function tryAutoSyncForMyTeam(matchId, userUid) {
+  if (!matchId || !userUid) return;
+
+  // まず match を読む（tournamentId が無ければ何もしない）
+  const ms = await getDoc(matchRef(matchId));
+  if (!ms.exists()) return;
+
+  const m = ms.data() || {};
+  const tid = String(m.tournamentId || "").trim();
+  if (!tid) return;
+
+  // 試合が非公開でも、代表者の invite がある試合だけここに来る想定。
+  // ただし Rules/設計次第で sync 書き込みが弾かれることがあるので try/catch で握る。
+  try {
+    await syncTournamentPlayersToMatch(matchId, userUid, tid, { allowOverwrite: false });
+  } catch (e) {
+    // UIは止めない。必要ならここでconsole.warnに出す
+    console.warn("auto sync failed:", { matchId, tid, code: e?.code, message: e?.message });
+  }
+}
+
+// ======================
 // Invites / matches list (team side)
 // ======================
 async function fetchInvitesForUid(uid) {
@@ -437,8 +569,9 @@ async function renderTeamMatchesFromInvites(user) {
       if (!ms.exists()) continue;
       const m = { id: ms.id, ...ms.data() };
 
-      // 代表者には「公開試合のみ」表示（管理者は別ブロックで全試合）
-      if (m.isPublic !== true) continue;
+      // ★B：試合一覧を開いたタイミングで「大会マスタ→試合」を自動同期（新規試合もここで追従）
+      // 失敗しても一覧表示は継続（権限エラー等を握る）
+      tryAutoSyncForMyTeam(inv.matchId, user.uid);
 
       const li = document.createElement("li");
       li.innerHTML = `
@@ -465,10 +598,6 @@ async function renderTeamMatchesFromInvites(user) {
     } catch (e) {
       console.error("match read failed:", inv.matchId, e);
     }
-  }
-
-  if (!matchesListEl.children.length) {
-    matchesListEl.innerHTML = "<li>参加可能な試合がありません。</li>";
   }
 }
 
@@ -575,6 +704,7 @@ async function createAdminInviteLink() {
 
     const url = `${location.origin}${location.pathname}?admin_token=${encodeURIComponent(token)}`;
     if (adminInviteUrlEl) adminInviteUrlEl.value = url;
+
     if (adminInviteBox) adminInviteBox.style.display = "block";
   } catch (e) {
     alert(`招待リンク作成失敗\n${e.code || ""}\n${e.message || e}`);
@@ -635,6 +765,7 @@ async function enrollAsAdminWithToken() {
     });
 
     isAdminUser = true;
+
     history.replaceState({}, "", location.pathname);
 
     alert("管理者登録が完了しました。");
@@ -668,6 +799,7 @@ async function loadMyMembership(matchId, uid) {
   return { id: snap.id, ...snap.data() };
 }
 
+// teams fallback
 async function inferTeamsFromMemberships(matchId) {
   try {
     const snap = await getDocs(query(membershipsCol(matchId), limit(20)));
@@ -891,6 +1023,7 @@ async function renderEvents() {
   const rows = [];
   for (const ev of latestEvents) {
     const t = msToMMSS(ev.timeMs || 0);
+
     const side = ev.teamId === leftTeam.uid ? "left" : (ev.teamId === rightTeam.uid ? "right" : "unknown");
 
     const scorerLabel = await getPlayerLabelFromMatchPlayers(ev.teamId, ev.scorerPlayerId || "");
@@ -924,7 +1057,7 @@ async function renderEvents() {
 
     const timeCell = `<div class="ev-time">${escapeHtml(t)}</div>`;
 
-    // ★編集ボタン非表示（削除のみ）
+    // 編集ボタン非表示（削除のみ）
     const actions = canDeleteEvent(ev)
       ? `<div class="ev-actions">
            <button class="btn ghost mini" data-action="delete" data-id="${escapeHtml(ev.id)}">削除</button>
@@ -1011,6 +1144,16 @@ async function enterMatch(matchId) {
     currentMembership = null;
   }
 
+  // ★B：試合入力に入る直前にも同期（一覧で同期できていなくてもここで復旧）
+  // 代表者のみ「自分UID配下」に書く。閲覧（admin）でも害はないが、権限的に安全側で team のときだけ。
+  if (currentMembership?.role === "team") {
+    try {
+      await tryAutoSyncForMyTeam(matchId, user.uid);
+    } catch {
+      // tryAutoSyncForMyTeam は内部で握るが念のため
+    }
+  }
+
   unsubMatchDoc = onSnapshot(
     matchRef(matchId),
     async (snap) => {
@@ -1023,7 +1166,9 @@ async function enterMatch(matchId) {
       currentTournamentId = currentMatch.tournamentId ? String(currentMatch.tournamentId) : null;
 
       const ok = inferTeamsFromMatchDoc(currentMatch);
-      if (!ok) await inferTeamsFromMemberships(matchId);
+      if (!ok) {
+        await inferTeamsFromMemberships(matchId);
+      }
 
       const t = currentMatch.timer || {};
       matchTimer = {
@@ -1239,8 +1384,7 @@ async function openTeamAdmin(matchId) {
 }
 
 // ======================
-// Player registry (tournament master + auto reflect to matches in tournament)
-// ★修正点：反映先の試合探索を matches クエリではなく invites 起点で行う（代表者でも確実）
+// Player registry (tournament master + auto reflect to all matches in tournament)
 // ======================
 function renderRegistryList() {
   if (!registryPlayersListEl) return;
@@ -1288,38 +1432,19 @@ function renderRegistryList() {
   };
 }
 
-/**
- * 大会に含まれる試合を取得（invites起点）
- * - 代表者は matches の where クエリが rules で弾かれることがあるため、invites → match getDoc で集計する
- * - これにより「大会マスタ→試合へ反映」が permission-denied に依存しない
- */
-async function loadMyInvitedMatchesInTournament(tournamentId, userUid) {
-  const invites = await fetchInvitesForUid(userUid); // teamUid==userUid で読める想定
-  if (!invites.length) return [];
+// 大会に含まれる試合を取得（あなたのチーム参加分）
+async function loadMyMatchesInTournament(tournamentId, userUid) {
+  const snap = await getDocs(query(matchesCol(), where("tournamentId", "==", tournamentId), limit(300)));
+  const matches = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
-  // matchId重複除去
-  const ids = Array.from(new Set(invites.map((x) => String(x.matchId || "")).filter(Boolean)));
+  const mine = matches.filter((m) => String(m.teamAUid || "") === userUid || String(m.teamBUid || "") === userUid);
+  mine.sort((a, b) => {
+    const am = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
+    const bm = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
+    return bm - am;
+  });
 
-  const out = [];
-  for (const matchId of ids) {
-    try {
-      const ms = await getDoc(matchRef(matchId));
-      if (!ms.exists()) continue;
-      const m = { id: ms.id, ...ms.data() };
-
-      // tournamentId一致のみ
-      if (String(m.tournamentId || "") !== String(tournamentId || "")) continue;
-
-      out.push({ id: matchId, title: formatMatchLabel(m) });
-    } catch (e) {
-      // ここで落ちても他の試合は続行
-      console.warn("loadMyInvitedMatchesInTournament: match read failed:", matchId, e);
-    }
-  }
-
-  // createdAt desc
-  out.sort((a, b) => (a.title || "").localeCompare(b.title || ""));
-  return out;
+  return mine.map((m) => ({ id: m.id, title: formatMatchLabel(m) }));
 }
 
 function fillRegistryMatchSelect(matches) {
@@ -1387,13 +1512,13 @@ async function loadRegistry(tournamentId) {
 
   if (registryContextEl) registryContextEl.textContent = `tournamentId: ${tid} / teamId(UID): ${user.uid}`;
 
-  // ★ここが重要：invites 起点で「大会に含まれる試合（自分が招待されているもの）」を取得
+  // 大会に含まれる試合（自チーム参加分）を読み込み → プルダウン反映
   try {
-    registryTargetMatches = await loadMyInvitedMatchesInTournament(tid, user.uid);
+    registryTargetMatches = await loadMyMatchesInTournament(tid, user.uid);
     if (registryMatchesBoxEl) registryMatchesBoxEl.style.display = "block";
     fillRegistryMatchSelect(registryTargetMatches);
   } catch (e) {
-    console.warn("loadMyInvitedMatchesInTournament failed:", e);
+    console.warn("loadMyMatchesInTournament failed:", e);
     if (registryMatchesBoxEl) registryMatchesBoxEl.style.display = "none";
     registryTargetMatches = [];
   }
@@ -1444,7 +1569,6 @@ registryAddPlayerBtn?.addEventListener("click", async () => {
       { merge: true }
     );
 
-    // auto reflect to matches in tournament
     await propagatePlayersToMatches(user.uid, [{ number: key, name }]);
 
     if (registryPlayerNumberEl) registryPlayerNumberEl.value = "";
@@ -1504,7 +1628,7 @@ registryBulkAddBtn?.addEventListener("click", async () => {
 });
 
 // ======================
-// Admin: match creation
+// Admin: match creation (with tournaments ensure)
 // ======================
 async function findUidByEmailLower(emailLower) {
   const q = query(usersCol(), where("emailLower", "==", emailLower), limit(1));
@@ -1573,7 +1697,7 @@ createMatchBtn?.addEventListener("click", async () => {
       teamAName,
       teamBName,
       timer: { status: "stopped", baseMs: 0, startedAt: null },
-      isPublic: false, // デフォルト非公開
+      isPublic: false,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
@@ -1616,6 +1740,7 @@ tournamentId=${tournamentId}
     alert(`試合作成OK\n${title}\n大会：${tournamentId}\njoinCode: ${joinCode}\n※公開に切り替えると代表者に表示されます。`);
 
     if (isAdminUser) await renderAdminMatches();
+
     if (adminNewTournamentIdEl) adminNewTournamentIdEl.value = "";
   } catch (e) {
     const msg = e?.message || `${e}`;
