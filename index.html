@@ -1,4 +1,4 @@
-<!-- index.html（全文置換：管理者招待リンクUI追加） -->
+<!-- index.html（全文置換：大会→試合自動反映＋管理者招待即Admin化＋管理者試合一覧フィルタ） -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -43,6 +43,19 @@
     </div>
 
     <p id="login-status" class="hint"></p>
+  </section>
+
+  <!-- 管理者招待リンクから来た人向け：即Admin化 -->
+  <section id="admin-enroll-section" class="card" style="display:none;">
+    <h2 class="section-title">管理者登録</h2>
+    <p class="hint">
+      管理者招待リンクが検出されました。ログイン後に「管理者になる」を押すと管理者権限が付与されます。
+    </p>
+    <div class="row">
+      <button id="admin-enroll-btn" class="btn">管理者になる</button>
+      <button id="admin-enroll-cancel-btn" class="btn ghost">キャンセル</button>
+    </div>
+    <p id="admin-enroll-status" class="hint"></p>
   </section>
 
   <!-- UID確認（初回のみ） -->
@@ -98,6 +111,17 @@
       <button id="load-registry-btn" class="btn">読み込む</button>
     </div>
     <p id="registry-context" class="hint"></p>
+
+    <!-- ★追加：大会に含まれる試合（あなたのチーム参加分） -->
+    <div id="registry-matches-box" style="display:none; margin-top:10px;">
+      <div class="hint">この大会に含まれる試合（あなたのチームが参加する試合）</div>
+      <div class="row">
+        <select id="registry-match-select" class="select" style="min-width:260px;">
+          <option value="">（確認用）試合を選択</option>
+        </select>
+      </div>
+      <p class="hint">選手登録は、この大会に含まれる参加試合へ自動反映されます（背番号キーで上書き/追記）。</p>
+    </div>
 
     <hr class="sep" />
 
@@ -184,11 +208,18 @@
       <div class="row" style="justify-content:space-between; align-items:center;">
         <h3 class="subhead" style="margin:0;">全試合（管理者メニュー）</h3>
 
-        <!-- ★追加：管理者招待リンク作成 -->
         <button id="admin-invite-btn" class="btn ghost">管理者招待用リンクを作成</button>
       </div>
 
-      <!-- ★追加：生成された招待リンク表示 -->
+      <!-- ★追加：大会フィルタ -->
+      <div class="row" style="margin-top:10px; align-items:center;">
+        <div class="hint" style="margin:0;">大会で絞り込み</div>
+        <select id="admin-matches-tournament-filter" class="select" style="min-width:260px;">
+          <option value="">すべて</option>
+        </select>
+      </div>
+
+      <!-- 招待リンク表示 -->
       <div id="admin-invite-box" style="display:none; margin-top:10px;">
         <div class="hint">招待リンク（1回限り）</div>
         <div class="row">
@@ -215,35 +246,6 @@
     </div>
 
     <p id="team-admin-context" class="hint"></p>
-
-    <hr class="sep" />
-
-    <h3 class="subhead">大会単位：選手マスタ（共有）</h3>
-    <p class="hint">試合開始前に登録して、「試合へコピー」を押してください。</p>
-
-    <div class="row">
-      <button id="copy-tournament-to-match-btn" class="btn ghost">選手情報をこの試合へコピー</button>
-      <button id="clear-match-players-btn" class="btn ghost">この試合の選手を全削除</button>
-    </div>
-
-    <h4 class="subsub">大会マスタ：一括登録（背番号,名前）</h4>
-    <textarea id="bulk-tournament-players" rows="6" style="width:100%;" placeholder="例：
-12,山田太郎
-7,佐藤花子
-"></textarea>
-    <div class="row">
-      <button id="bulk-add-tournament-btn" class="btn">チームへ一括追加</button>
-    </div>
-
-    <h4 class="subsub">大会マスタ：個別追加</h4>
-    <div class="row">
-      <input type="text" id="tournament-player-number" placeholder="背番号（例：12）" />
-      <input type="text" id="tournament-player-name" placeholder="名前（例：山田 太郎）" />
-      <button id="add-tournament-player-btn" class="btn">追加</button>
-    </div>
-
-    <h4 class="subsub">大会マスタ：登録済み（編集・削除）</h4>
-    <ul id="tournament-players-list" class="list"></ul>
 
     <hr class="sep" />
 
@@ -325,4 +327,3 @@
   <script type="module" src="app.js"></script>
 </body>
 </html>
-
