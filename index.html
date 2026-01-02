@@ -1,4 +1,3 @@
-<!-- index.html（全文置換：大会→試合自動反映＋管理者招待即Admin化＋管理者試合一覧フィルタ） -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -45,22 +44,9 @@
     <p id="login-status" class="hint"></p>
   </section>
 
-  <!-- 管理者招待リンクから来た人向け：即Admin化 -->
-  <section id="admin-enroll-section" class="card" style="display:none;">
-    <h2 class="section-title">管理者登録</h2>
-    <p class="hint">
-      管理者招待リンクが検出されました。ログイン後に「管理者になる」を押すと管理者権限が付与されます。
-    </p>
-    <div class="row">
-      <button id="admin-enroll-btn" class="btn">管理者になる</button>
-      <button id="admin-enroll-cancel-btn" class="btn ghost">キャンセル</button>
-    </div>
-    <p id="admin-enroll-status" class="hint"></p>
-  </section>
-
   <!-- UID確認（初回のみ） -->
   <section id="uid-verify-section" class="card" style="display:none;">
-    <h2>UID確認</h2>
+    <h2 class="section-title">UID確認</h2>
     <p class="hint">
       以下のUIDを、入力欄に正確に入力してください（大文字小文字区別）。
     </p>
@@ -79,10 +65,28 @@
     </div>
   </section>
 
+  <!-- ★追加：管理者登録（招待リンク） -->
+  <section id="admin-enroll-section" class="card" style="display:none;">
+    <h2 class="section-title">管理者登録</h2>
+    <p class="hint">招待リンクからアクセスしています。下のボタンで管理者登録を完了してください。</p>
+
+    <div class="hint">招待トークン:</div>
+    <div id="admin-enroll-status" style="font-weight:800; font-size: 16px; margin: 6px 0 10px;"></div>
+
+    <div class="row">
+      <button id="admin-enroll-btn" class="btn">管理者として登録</button>
+      <button id="admin-enroll-cancel-btn" class="btn ghost">キャンセル</button>
+    </div>
+
+    <p class="hint" style="margin-top:10px;">
+      ※このリンクは原則「1回限り」です。登録後はURLからトークンが消えます。
+    </p>
+  </section>
+
   <section id="rep-home-section" class="card" style="display:none;">
     <h2 class="section-title">チームメニュー</h2>
     <div class="row">
-      <button id="open-player-registry-btn" class="btn">選手登録</button>
+      <button id="open-player-registry-btn" class="btn">選手登録（大会マスタ）</button>
       <button id="open-matches-btn" class="btn ghost">試合一覧</button>
     </div>
 
@@ -92,7 +96,7 @@
   </section>
 
   <section id="player-registry-section" class="card" style="display:none;">
-    <h2 class="section-title">選手登録</h2>
+    <h2 class="section-title">選手登録（大会マスタ）</h2>
 
     <div class="row">
       <button id="back-to-home-btn" class="btn ghost">← メニューに戻る</button>
@@ -112,15 +116,16 @@
     </div>
     <p id="registry-context" class="hint"></p>
 
-    <!-- ★追加：大会に含まれる試合（あなたのチーム参加分） -->
+    <!-- ★追加：大会に含まれる試合（確認用プルダウン） -->
     <div id="registry-matches-box" style="display:none; margin-top:10px;">
-      <div class="hint">この大会に含まれる試合（あなたのチームが参加する試合）</div>
+      <div class="hint">（確認用）この大会に含まれる試合</div>
       <div class="row">
-        <select id="registry-match-select" class="select" style="min-width:260px;">
+        <select id="registry-match-select" class="select" style="min-width:320px;">
           <option value="">（確認用）試合を選択</option>
         </select>
+        <button id="registry-open-match-btn" class="btn ghost">この試合を開く</button>
       </div>
-      <p class="hint">選手登録は、この大会に含まれる参加試合へ自動反映されます（背番号キーで上書き/追記）。</p>
+      <p class="hint" style="margin-top:6px;">※公開/招待状況により、表示される試合は「自チーム参加分」のみです。</p>
     </div>
 
     <hr class="sep" />
@@ -143,7 +148,7 @@
       <button id="registry-add-player-btn" class="btn">追加</button>
     </div>
 
-    <h3 class="subhead">登録済み（編集・削除）</h3>
+    <h3 class="subhead">登録済み（削除）</h3>
     <div class="row">
       <input type="text" id="registry-search" placeholder="検索（背番号/名前）" style="min-width:240px;" />
       <button id="registry-clear-search-btn" class="btn ghost">クリア</button>
@@ -153,7 +158,7 @@
   </section>
 
   <section id="admin-section" class="card" style="display:none;">
-    <h2 class="section-title">試合作成</h2>
+    <h2 class="section-title">試合作成（管理者）</h2>
 
     <div class="row">
       <button id="admin-back-to-matches-btn" class="btn ghost">← 試合一覧に戻る</button>
@@ -200,26 +205,28 @@
 
     <div class="row" style="margin-bottom:10px;">
       <button id="matches-back-to-home-btn" class="btn ghost">← 戻る</button>
+      <button id="matches-open-registry-btn" class="btn ghost">大会マスタへ</button>
       <button id="matches-open-create-btn" class="btn" style="display:none;">試合作成</button>
     </div>
 
     <!-- 管理者ブロック -->
     <div id="matches-admin-block" style="display:none;">
-      <div class="row" style="justify-content:space-between; align-items:center;">
-        <h3 class="subhead" style="margin:0;">全試合（管理者メニュー）</h3>
+      <div class="row" style="justify-content:space-between; align-items:flex-end;">
+        <div style="flex:1;">
+          <h3 class="subhead" style="margin:0;">全試合（管理者）</h3>
+          <div class="hint" style="margin-top:6px;">大会で絞り込みできます。</div>
+          <div class="row" style="margin-top:6px;">
+            <select id="admin-matches-tournament-filter" class="select" style="min-width:260px;">
+              <option value="">すべて</option>
+            </select>
+          </div>
+        </div>
 
-        <button id="admin-invite-btn" class="btn ghost">管理者招待用リンクを作成</button>
+        <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+          <button id="admin-invite-btn" class="btn ghost">管理者招待用リンクを作成</button>
+        </div>
       </div>
 
-      <!-- ★追加：大会フィルタ -->
-      <div class="row" style="margin-top:10px; align-items:center;">
-        <div class="hint" style="margin:0;">大会で絞り込み</div>
-        <select id="admin-matches-tournament-filter" class="select" style="min-width:260px;">
-          <option value="">すべて</option>
-        </select>
-      </div>
-
-      <!-- 招待リンク表示 -->
       <div id="admin-invite-box" style="display:none; margin-top:10px;">
         <div class="hint">招待リンク（1回限り）</div>
         <div class="row">
@@ -234,6 +241,7 @@
     </div>
 
     <h3 class="subhead">参加可能な試合</h3>
+    <p class="hint">未公開の試合は代表者には表示されません（管理者は常に閲覧可能）。</p>
     <ul id="matches-list" class="list"></ul>
   </section>
 
@@ -267,7 +275,7 @@
       <button id="add-match-player-btn" class="btn">追加</button>
     </div>
 
-    <h4 class="subsub">この試合：登録済み（編集・削除）</h4>
+    <h4 class="subsub">この試合：登録済み（削除）</h4>
     <ul id="match-players-list" class="list"></ul>
   </section>
 
