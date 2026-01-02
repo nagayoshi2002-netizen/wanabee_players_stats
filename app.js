@@ -1,4 +1,4 @@
-// app.js（全文置換：管理者試合一覧に「公開/非公開切替」「戻る」「試合作成」追加）
+// app.js（全文置換：試合一覧に「戻る」「試合作成」導線追加＋管理者：公開/非公開切替ボタン追加）
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-app.js";
 import {
   getAuth,
@@ -90,6 +90,7 @@ const teamAdminSection = document.getElementById("team-admin-section");
 const scoreSection = document.getElementById("score-section");
 
 // 管理者：試合作成
+const adminBackToMatchesBtn = document.getElementById("admin-back-to-matches-btn");
 const teamANameEl = document.getElementById("team-a-name");
 const teamBNameEl = document.getElementById("team-b-name");
 const teamAEmailEl = document.getElementById("team-a-email");
@@ -100,15 +101,14 @@ const createMatchBtn = document.getElementById("create-match-btn");
 const adminInfoEl = document.getElementById("admin-info");
 
 // 試合一覧
+const matchesBackToHomeBtn = document.getElementById("matches-back-to-home-btn");
+const matchesOpenCreateBtn = document.getElementById("matches-open-create-btn");
+
 const matchesAdminBlock = document.getElementById("matches-admin-block");
 const adminMatchesListEl = document.getElementById("admin-matches-list");
 const matchesListEl = document.getElementById("matches-list");
 
-// ★追加：管理者試合一覧の上部ボタン
-const adminMatchesBackBtn = document.getElementById("admin-matches-back-btn");
-const adminOpenCreateMatchBtn = document.getElementById("admin-open-create-match-btn");
-
-// 試合入力
+// 試合入力（スクショレイアウト）
 const backToMatchesBtn = document.getElementById("back-to-matches-btn");
 const openTeamAdminBtn = document.getElementById("open-team-admin-btn");
 
@@ -131,7 +131,7 @@ const eventControlsHintEl = document.getElementById("event-controls-hint");
 
 const eventListEl = document.getElementById("event-list");
 
-// チーム管理者（試合単位）
+// チーム管理者（試合単位：大会マスタ共有 + 試合選手管理）
 const teamAdminContextEl = document.getElementById("team-admin-context");
 const backToMatchesFromAdminBtn = document.getElementById("back-to-matches-from-admin-btn");
 const goToScoreFromAdminBtn = document.getElementById("go-to-score-from-admin-btn");
@@ -158,7 +158,7 @@ const matchPlayersListEl = document.getElementById("match-players-list");
 let currentMatchId = null;
 let currentMatch = null;
 let currentTournamentId = null;
-let currentMembership = null;
+let currentMembership = null; // matches/{matchId}/memberships/{uid}
 let isAdminUser = false;
 
 let registryTournamentId = null;
@@ -171,11 +171,12 @@ let rightTeam = { uid: "", name: "—" };
 let matchTimer = {
   status: "stopped",
   baseMs: 0,
-  startedAt: null,
+  startedAt: null, // Timestamp
 };
 
-let scoreByTeam = {};
+let scoreByTeam = {}; // {teamUid: score}
 
+// realtime unsub
 let unsubInvites = null;
 let unsubAdminMatches = null;
 
@@ -189,7 +190,10 @@ let unsubMatchPlayers = null;
 
 let unsubRegistryPlayers = null;
 
+// UI ticker
 let uiTickerId = null;
+
+// UID verify state
 let uidVerifyBound = false;
 
 // ======================
@@ -227,6 +231,7 @@ function normalizeTournamentId(raw) {
   return String(raw || "").trim().toLowerCase();
 }
 function validTournamentId(tid) {
+  // 例：2025spring / wuc_2026 / tokyo-a
   return /^[a-z0-9][a-z0-9_-]{1,50}$/.test(tid);
 }
 function randomJoinCode(len = 8) {
@@ -235,19 +240,36 @@ function randomJoinCode(len = 8) {
   for (let i = 0; i < len; i++) out += chars[Math.floor(Math.random() * chars.length)];
   return out;
 }
+
 function setTopStatus(text) {
   if (topStatusEl) topStatusEl.textContent = text || "";
+}
+
+// 公開判定（未設定は非公開扱い）
+function isPublicMatchData(m) {
+  return m?.isPublic === true;
 }
 
 // ======================
 // Collections / refs
 // ======================
-function usersCol() { return collection(db, "users"); }
-function userRef(uid) { return doc(db, "users", uid); }
-function adminsRef(uid) { return doc(db, "admins", uid); }
+function usersCol() {
+  return collection(db, "users");
+}
+function userRef(uid) {
+  return doc(db, "users", uid);
+}
 
-function tournamentsCol() { return collection(db, "tournaments"); }
-function tournamentRef(tournamentId) { return doc(db, "tournaments", tournamentId); }
+function adminsRef(uid) {
+  return doc(db, "admins", uid);
+}
+
+function tournamentsCol() {
+  return collection(db, "tournaments");
+}
+function tournamentRef(tournamentId) {
+  return doc(db, "tournaments", tournamentId);
+}
 function tournamentTeamPlayersCol(tournamentId, teamId) {
   return collection(db, "tournaments", tournamentId, "teams", teamId, "players");
 }
@@ -255,22 +277,36 @@ function tournamentTeamPlayerRef(tournamentId, teamId, playerId) {
   return doc(db, "tournaments", tournamentId, "teams", teamId, "players", playerId);
 }
 
-function matchesCol() { return collection(db, "matches"); }
-function matchRef(matchId) { return doc(db, "matches", matchId); }
-function membershipsCol(matchId) { return collection(db, "matches", matchId, "memberships"); }
-function membershipRef(matchId, uid) { return doc(db, "matches", matchId, "memberships", uid); }
-
-function invitesCol() { return collection(db, "invites"); }
-function eventsCol(matchId) { return collection(db, "matches", matchId, "events"); }
-function eventRef(matchId, eventId) { return doc(db, "matches", matchId, "events", eventId); }
-
+function matchesCol() {
+  return collection(db, "matches");
+}
+function matchRef(matchId) {
+  return doc(db, "matches", matchId);
+}
+function membershipsCol(matchId) {
+  return collection(db, "matches", matchId, "memberships");
+}
+function membershipRef(matchId, uid) {
+  return doc(db, "matches", matchId, "memberships", uid);
+}
+function invitesCol() {
+  return collection(db, "invites");
+}
+function eventsCol(matchId) {
+  return collection(db, "matches", matchId, "events");
+}
+function eventRef(matchId, eventId) {
+  return doc(db, "matches", matchId, "events", eventId);
+}
 function matchPlayersCol(matchId, teamId) {
   return collection(db, "matches", matchId, "teams", teamId, "players");
 }
 function matchPlayerRef(matchId, teamId, playerId) {
   return doc(db, "matches", matchId, "teams", teamId, "players", playerId);
 }
-function joinCodeRef(codeUpper) { return doc(db, "joinCodes", codeUpper); }
+function joinCodeRef(codeUpper) {
+  return doc(db, "joinCodes", codeUpper);
+}
 
 // ======================
 // Section control
@@ -304,12 +340,13 @@ function showTeamAdminScreen() {
   hideAllMainSections();
   teamAdminSection && (teamAdminSection.style.display = "block");
 }
-function showAdminCreateMatchScreen() {
+function showAdminCreateScreen() {
   hideAllMainSections();
   adminSection && (adminSection.style.display = "block");
 }
 
 function setLoginVisibility(isAuthed) {
+  // 要件：ログインのカードは最初の画面のみ。ログイン後は非表示。
   if (loginSection) loginSection.style.display = isAuthed ? "none" : "block";
   if (logoutBtn) logoutBtn.style.display = isAuthed ? "inline-flex" : "none";
   if (signupBtn) signupBtn.style.display = isAuthed ? "none" : "inline-flex";
@@ -323,6 +360,7 @@ async function isGlobalAdmin(uid) {
   const snap = await getDoc(adminsRef(uid));
   return snap.exists();
 }
+
 async function hasUserRegistry(user) {
   try {
     const snap = await getDoc(userRef(user.uid));
@@ -352,12 +390,14 @@ function cleanupRealtimeAll() {
 
   stopUiTicker();
 }
+
 function stopUiTicker() {
   if (uiTickerId) {
     clearInterval(uiTickerId);
     uiTickerId = null;
   }
 }
+
 function startUiTicker() {
   stopUiTicker();
   uiTickerId = window.setInterval(() => {
@@ -426,6 +466,7 @@ function formatMatchLabel(matchData) {
   return title || "Untitled Match";
 }
 
+// 代表者：招待試合の表示（※Rules側で非公開は読めない想定なので、読めないものはスキップ）
 async function renderTeamMatchesFromInvites(user) {
   if (!matchesListEl) return;
   matchesListEl.innerHTML = "";
@@ -452,6 +493,8 @@ async function renderTeamMatchesFromInvites(user) {
     return;
   }
 
+  let shown = 0;
+
   for (const inv of invites) {
     try {
       const ms = await getDoc(matchRef(inv.matchId));
@@ -474,22 +517,23 @@ async function renderTeamMatchesFromInvites(user) {
       });
 
       matchesListEl.appendChild(li);
+      shown++;
     } catch (e) {
-      console.error("match read failed:", inv.matchId, e);
+      // 非公開などで match read が拒否された場合はスキップ
+      console.warn("match read skipped:", inv.matchId, e?.code || e);
     }
+  }
+
+  if (shown === 0) {
+    matchesListEl.innerHTML = "<li>閲覧可能な試合がありません（非公開の可能性があります）。</li>";
   }
 }
 
-// ======================
-// ★管理者：公開/非公開切替
-// ======================
-function isPublicMatch(m) {
-  return m?.isPublic === true; // 未設定は非公開扱い
-}
+// 管理者：全試合（公開/非公開切替ボタン付き）
 async function toggleMatchPublic(matchId, nextPublic) {
   const user = auth.currentUser;
   if (!user) return alert("ログインしてください。");
-  if (!isAdminUser) return alert("管理者権限がありません。");
+  if (!isAdminUser) return alert("管理者のみ操作できます。");
 
   try {
     await updateDoc(matchRef(matchId), {
@@ -518,14 +562,17 @@ async function renderAdminAllMatches() {
 
     adminMatchesListEl.innerHTML = "";
     for (const m of matches) {
-      const pub = isPublicMatch(m);
+      const pub = isPublicMatchData(m);
 
       const li = document.createElement("li");
       li.innerHTML = `
         <div class="match-item">
-          <div class="match-title">${escapeHtml(formatMatchLabel(m))}</div>
+          <div>
+            <div class="match-title">${escapeHtml(formatMatchLabel(m))}</div>
+            <div class="hint" style="margin-top:4px;">${pub ? "公開" : "非公開"}</div>
+          </div>
           <div class="match-actions">
-            <button class="btn ghost" data-action="toggle">${pub ? "公開" : "非公開"}</button>
+            <button class="btn ghost" data-action="toggle">${pub ? "非公開にする" : "公開にする"}</button>
             <button class="btn" data-action="enter">試合入力（閲覧）</button>
           </div>
         </div>
@@ -536,11 +583,9 @@ async function renderAdminAllMatches() {
       });
 
       li.querySelector('[data-action="toggle"]')?.addEventListener("click", async () => {
-        const next = !pub;
-        const ok = confirm(`この試合を「${next ? "公開" : "非公開"}」に切り替えますか？`);
+        const ok = confirm(`この試合を「${pub ? "非公開" : "公開"}」にしますか？`);
         if (!ok) return;
-        await toggleMatchPublic(m.id, next);
-        // 反映のため再描画
+        await toggleMatchPublic(m.id, !pub);
         await renderAdminAllMatches();
       });
 
@@ -578,6 +623,7 @@ function timerMsNow() {
   }
   return baseMs;
 }
+
 function renderTimerAndScoreboard() {
   if (timerEl) timerEl.textContent = msToMMSS(timerMsNow());
 
@@ -589,11 +635,13 @@ function renderTimerAndScoreboard() {
   if (scoreLeftEl) scoreLeftEl.textContent = String(l);
   if (scoreRightEl) scoreRightEl.textContent = String(r);
 }
+
 function setTimerShareStatus(text, isError = false) {
   if (!timerShareStatusEl) return;
   timerShareStatusEl.textContent = text || "";
   timerShareStatusEl.style.color = isError ? "#c00" : "";
 }
+
 async function updateSharedTimer(partial) {
   if (!currentMatchId) return;
   const user = auth.currentUser;
@@ -615,6 +663,7 @@ async function updateSharedTimer(partial) {
     alert(`タイマー共有に失敗\n${e.code || ""}\n${e.message || e}`);
   }
 }
+
 async function onStartTimerClicked() {
   if (!canOperateTimer()) return;
   if (matchTimer.status === "running") return;
@@ -623,6 +672,7 @@ async function onStartTimerClicked() {
     startedAt: serverTimestamp(),
   });
 }
+
 async function onStopTimerClicked() {
   if (!canOperateTimer()) return;
   if (matchTimer.status !== "running") return;
@@ -638,6 +688,7 @@ async function onStopTimerClicked() {
     startedAt: null,
   });
 }
+
 async function onResetTimerClicked() {
   if (!canOperateTimer()) return;
   await updateSharedTimer({
@@ -646,6 +697,7 @@ async function onResetTimerClicked() {
     startedAt: null,
   });
 }
+
 function canOperateTimer() {
   if (isAdminUser) return true;
   return !!currentMembership;
@@ -670,6 +722,7 @@ function rebuildSelect(selectEl, firstLabel, players) {
     selectEl.appendChild(o);
   }
 }
+
 async function getPlayerLabelFromMatchPlayers(teamUid, playerId) {
   if (!currentMatchId || !teamUid || !playerId) return "";
   try {
@@ -688,6 +741,7 @@ async function getPlayerLabelFromMatchPlayers(teamUid, playerId) {
 function canRecordEvents() {
   return currentMembership?.role === "team";
 }
+
 function setEventControlsAvailability() {
   const ok = canRecordEvents();
   if (playerSelectEl) playerSelectEl.disabled = !ok;
@@ -696,10 +750,10 @@ function setEventControlsAvailability() {
   if (recordCallahanBtn) recordCallahanBtn.disabled = !ok;
 
   if (eventControlsHintEl) {
-    if (ok) eventControlsHintEl.textContent = "";
-    else eventControlsHintEl.textContent = "※この画面は閲覧モードです（イベント入力はチーム代表者のみ）。";
+    eventControlsHintEl.textContent = ok ? "" : "※この画面は閲覧モードです（イベント入力はチーム代表者のみ）。";
   }
 }
+
 async function recordEvent(type) {
   const user = auth.currentUser;
   if (!user) return alert("ログインしてください。");
@@ -732,12 +786,14 @@ async function recordEvent(type) {
     console.error(e);
   }
 }
+
 function canEditEvent(ev) {
   const user = auth.currentUser;
   if (!user) return false;
   if (isAdminUser) return true;
   return ev?.createdBy === user.uid;
 }
+
 async function subscribeEvents(matchId) {
   unsubEvents?.(); unsubEvents = null;
 
@@ -753,6 +809,7 @@ async function subscribeEvents(matchId) {
     }
   );
 }
+
 async function renderEvents() {
   if (!eventListEl) return;
 
@@ -778,7 +835,7 @@ async function renderEvents() {
         ? `<div class="ev-cell">
              <div class="ev-main">${escapeHtml(mainLine)}</div>
              <div class="ev-sub">${escapeHtml(subLine)}</div>
-             <div class="ev-teamline"><span class="ev-team">（${escapeHtml(teamName)}）</span></div>
+             <div class="ev-teamline">（${escapeHtml(teamName)}）</div>
            </div>`
         : `<div class="ev-cell muted"> </div>`;
 
@@ -787,13 +844,13 @@ async function renderEvents() {
         ? `<div class="ev-cell">
              <div class="ev-main">${escapeHtml(mainLine)}</div>
              <div class="ev-sub">${escapeHtml(subLine)}</div>
-             <div class="ev-teamline"><span class="ev-team">（${escapeHtml(teamName)}）</span></div>
+             <div class="ev-teamline">（${escapeHtml(teamName)}）</div>
            </div>`
         : `<div class="ev-cell muted"> </div>`;
 
     const timeCell = `<div class="ev-time">${escapeHtml(t)}</div>`;
 
-    // ここは今回要件外（編集非表示などは別件）。現状維持。
+    // 現要件：編集UIは残している（別途あなたの要件で非表示にするならここで外す）
     const actions = canEditEvent(ev)
       ? `<div class="ev-actions">
            <button class="btn ghost mini" data-action="edit" data-id="${escapeHtml(ev.id)}">編集</button>
@@ -824,6 +881,7 @@ eventListEl?.addEventListener("click", async (e) => {
 
   const ev0 = latestEvents.find((x) => x.id === id);
   if (!ev0) return;
+
   if (!canEditEvent(ev0)) return;
 
   const ref = eventRef(currentMatchId, id);
@@ -872,7 +930,7 @@ eventListEl?.addEventListener("click", async (e) => {
 });
 
 // ======================
-// Score aggregate
+// Score aggregate（goal + callahan を得点として計上）
 // ======================
 function subscribeScoreAggregate(matchId) {
   unsubScoreAgg?.(); unsubScoreAgg = null;
@@ -1002,6 +1060,7 @@ async function enterMatch(matchId) {
   setEventControlsAvailability();
 }
 
+// back (score -> matches)
 backToMatchesBtn?.addEventListener("click", async () => {
   stopUiTicker();
 
@@ -1038,11 +1097,15 @@ stopTimerBtn?.addEventListener("click", onStopTimerClicked);
 resetTimerBtn?.addEventListener("click", onResetTimerClicked);
 
 // event buttons
-recordGoalBtn?.addEventListener("click", async () => { await recordEvent("goal"); });
-recordCallahanBtn?.addEventListener("click", async () => { await recordEvent("callahan"); });
+recordGoalBtn?.addEventListener("click", async () => {
+  await recordEvent("goal");
+});
+recordCallahanBtn?.addEventListener("click", async () => {
+  await recordEvent("callahan");
+});
 
 // ======================
-// Team admin（試合単位）
+// Team admin（試合単位：大会マスタ共有 + 試合選手管理）
 // ======================
 function parseBulkPlayers(text) {
   const lines = String(text || "").split("\n").map((s) => s.trim()).filter(Boolean);
@@ -1054,6 +1117,7 @@ function parseBulkPlayers(text) {
   }
   return rows;
 }
+
 function renderPlayersListForAdmin({ listEl, players, onEdit, onDelete }) {
   if (!listEl) return;
 
@@ -1091,6 +1155,7 @@ function renderPlayersListForAdmin({ listEl, players, onEdit, onDelete }) {
     }
   };
 }
+
 async function clearAllMatchPlayers(matchId, teamId) {
   const snap = await getDocs(query(matchPlayersCol(matchId, teamId)));
   if (snap.empty) return;
@@ -1108,6 +1173,7 @@ async function clearAllMatchPlayers(matchId, teamId) {
   }
   if (count > 0) await batch.commit();
 }
+
 async function copyTournamentPlayersToMatch(tournamentId, matchId, teamId) {
   const snap = await getDocs(query(tournamentTeamPlayersCol(tournamentId, teamId), orderBy("number", "asc")));
   if (snap.empty) return;
@@ -1124,6 +1190,7 @@ async function copyTournamentPlayersToMatch(tournamentId, matchId, teamId) {
     });
   }
 }
+
 async function openTeamAdmin(matchId) {
   const user = auth.currentUser;
   if (!user) return alert("ログインしてください。");
@@ -1235,7 +1302,11 @@ async function openTeamAdmin(matchId) {
     const name = (tournamentPlayerNameEl?.value || "").trim();
     if (!number || !name) return alert("背番号と名前を入力してください。");
     await addDoc(tournamentTeamPlayersCol(currentTournamentId, user.uid), {
-      number, name, active: true, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+      number,
+      name,
+      active: true,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
     });
     if (tournamentPlayerNumberEl) tournamentPlayerNumberEl.value = "";
     if (tournamentPlayerNameEl) tournamentPlayerNameEl.value = "";
@@ -1247,7 +1318,11 @@ async function openTeamAdmin(matchId) {
     if (rows.length === 0) return alert("形式が不正です。例：12,山田太郎");
     for (const r of rows) {
       await addDoc(tournamentTeamPlayersCol(currentTournamentId, user.uid), {
-        number: r.number, name: r.name, active: true, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+        number: r.number,
+        name: r.name,
+        active: true,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
       });
     }
     if (bulkTournamentPlayersEl) bulkTournamentPlayersEl.value = "";
@@ -1258,7 +1333,11 @@ async function openTeamAdmin(matchId) {
     const name = (matchPlayerNameEl?.value || "").trim();
     if (!number || !name) return alert("背番号と名前を入力してください。");
     await addDoc(matchPlayersCol(matchId, user.uid), {
-      number, name, active: true, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+      number,
+      name,
+      active: true,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
     });
     if (matchPlayerNumberEl) matchPlayerNumberEl.value = "";
     if (matchPlayerNameEl) matchPlayerNameEl.value = "";
@@ -1269,7 +1348,11 @@ async function openTeamAdmin(matchId) {
     if (rows.length === 0) return alert("形式が不正です。例：12,山田太郎");
     for (const r of rows) {
       await addDoc(matchPlayersCol(matchId, user.uid), {
-        number: r.number, name: r.name, active: true, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+        number: r.number,
+        name: r.name,
+        active: true,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
       });
     }
     if (bulkMatchPlayersEl) bulkMatchPlayersEl.value = "";
@@ -1334,6 +1417,7 @@ function renderRegistryList() {
 
     const user = auth.currentUser;
     if (!user) return;
+
     if (!registryTournamentId) return;
 
     try {
@@ -1360,6 +1444,7 @@ function renderRegistryList() {
     }
   };
 }
+
 async function loadRegistry(tournamentId) {
   const user = auth.currentUser;
   if (!user) return alert("ログインしてください。");
@@ -1390,10 +1475,12 @@ registryClearSearchBtn?.addEventListener("click", () => {
   if (registrySearchEl) registrySearchEl.value = "";
   renderRegistryList();
 });
+
 loadRegistryBtn?.addEventListener("click", async () => {
   const tid = registryTournamentSelectEl?.value || "";
   await loadRegistry(tid);
 });
+
 registryAddPlayerBtn?.addEventListener("click", async () => {
   const user = auth.currentUser;
   if (!user) return alert("ログインしてください。");
@@ -1405,7 +1492,11 @@ registryAddPlayerBtn?.addEventListener("click", async () => {
 
   try {
     await addDoc(tournamentTeamPlayersCol(registryTournamentId, user.uid), {
-      number, name, active: true, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+      number,
+      name,
+      active: true,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
     });
     if (registryPlayerNumberEl) registryPlayerNumberEl.value = "";
     if (registryPlayerNameEl) registryPlayerNameEl.value = "";
@@ -1415,9 +1506,11 @@ registryAddPlayerBtn?.addEventListener("click", async () => {
     console.error(e);
   }
 });
+
 registryPlayerNameEl?.addEventListener("keydown", (e) => {
   if (e.key === "Enter") registryAddPlayerBtn?.click();
 });
+
 registryBulkAddBtn?.addEventListener("click", async () => {
   const user = auth.currentUser;
   if (!user) return alert("ログインしてください。");
@@ -1429,7 +1522,11 @@ registryBulkAddBtn?.addEventListener("click", async () => {
   try {
     for (const r of rows) {
       await addDoc(tournamentTeamPlayersCol(registryTournamentId, user.uid), {
-        number: r.number, name: r.name, active: true, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+        number: r.number,
+        name: r.name,
+        active: true,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
       });
     }
     if (registryBulkEl) registryBulkEl.value = "";
@@ -1440,7 +1537,7 @@ registryBulkAddBtn?.addEventListener("click", async () => {
 });
 
 // ======================
-// 管理者：試合作成
+// 管理者：試合作成（チーム名×2＋メール×2＋大会選択/新規）
 // ======================
 async function findUidByEmailLower(emailLower) {
   const q = query(usersCol(), where("emailLower", "==", emailLower), limit(1));
@@ -1448,6 +1545,7 @@ async function findUidByEmailLower(emailLower) {
   if (snap.empty) return null;
   return snap.docs[0].id;
 }
+
 async function ensureTournamentExists(tournamentId) {
   await setDoc(
     tournamentRef(tournamentId),
@@ -1508,9 +1606,10 @@ createMatchBtn?.addEventListener("click", async () => {
       teamAName,
       teamBName,
       timer: { status: "stopped", baseMs: 0, startedAt: null },
-      isPublic: false, // ★初期は非公開（未設定なら非公開扱いでもOKだが明示）
+      isPublic: false, // デフォルトは非公開
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
+      updatedBy: user.uid,
     });
 
     await setDoc(membershipRef(matchDocRef.id, user.uid), {
@@ -1544,18 +1643,14 @@ createMatchBtn?.addEventListener("click", async () => {
     const msg = `作成完了：${title}
 matchId=${matchDocRef.id}
 joinCode=${joinCode}
-tournamentId=${tournamentId}`;
+tournamentId=${tournamentId}
+公開=${"非公開"}
+招待：${teamAEmail}, ${teamBEmail}`;
     if (adminInfoEl) adminInfoEl.textContent = msg;
 
-    alert(`試合作成OK\n${title}\n大会：${tournamentId}\njoinCode: ${joinCode}`);
+    alert(`試合作成OK\n${title}\n大会：${tournamentId}\njoinCode: ${joinCode}\n※デフォルトは非公開です。公開にする場合は「試合一覧」から切り替えてください。`);
 
-    if (isAdminUser) {
-      // 作成後は試合一覧へ戻して見えるように
-      showMatchesScreen();
-      matchesAdminBlock && (matchesAdminBlock.style.display = "block");
-      await renderAdminAllMatches();
-    }
-
+    if (isAdminUser) await renderAdminAllMatches();
     if (adminNewTournamentIdEl) adminNewTournamentIdEl.value = "";
   } catch (e) {
     const msg = e?.message || `${e}`;
@@ -1648,8 +1743,10 @@ async function showPostLoginUI(user) {
     isAdminUser = false;
   }
 
-  adminSection && (adminSection.style.display = isAdminUser ? "block" : "none");
+  // 管理者：試合作成ボタン表示（試合一覧の上部）
+  if (matchesOpenCreateBtn) matchesOpenCreateBtn.style.display = isAdminUser ? "inline-flex" : "none";
 
+  // tournaments
   try {
     await loadTournamentOptions();
   } catch (e) {
@@ -1658,16 +1755,6 @@ async function showPostLoginUI(user) {
 
   showRepHome();
 }
-
-// ======================
-// ★追加：管理者試合一覧 上部ボタン動作
-// ======================
-adminMatchesBackBtn?.addEventListener("click", () => {
-  showRepHome();
-});
-adminOpenCreateMatchBtn?.addEventListener("click", () => {
-  showAdminCreateMatchScreen();
-});
 
 // 代表者ホーム導線
 openPlayerRegistryBtn?.addEventListener("click", () => {
@@ -1694,6 +1781,32 @@ backToHomeBtn?.addEventListener("click", () => {
 });
 
 goToMatchesBtn?.addEventListener("click", async () => {
+  showMatchesScreen();
+  const user = auth.currentUser;
+  if (user) {
+    await renderTeamMatchesFromInvites(user);
+    if (isAdminUser) {
+      matchesAdminBlock && (matchesAdminBlock.style.display = "block");
+      await renderAdminAllMatches();
+    } else {
+      matchesAdminBlock && (matchesAdminBlock.style.display = "none");
+    }
+  }
+});
+
+// 追加：試合一覧 → 戻る（ホーム）
+matchesBackToHomeBtn?.addEventListener("click", () => {
+  showRepHome();
+});
+
+// 追加：試合一覧 → 試合作成（管理者のみ）
+matchesOpenCreateBtn?.addEventListener("click", () => {
+  if (!isAdminUser) return;
+  showAdminCreateScreen();
+});
+
+// 追加：試合作成 → 試合一覧へ戻る
+adminBackToMatchesBtn?.addEventListener("click", async () => {
   showMatchesScreen();
   const user = auth.currentUser;
   if (user) {
@@ -1779,6 +1892,9 @@ onAuthStateChanged(auth, async (user) => {
     adminMatchesListEl && (adminMatchesListEl.innerHTML = "");
     matchesAdminBlock && (matchesAdminBlock.style.display = "none");
     adminSection && (adminSection.style.display = "none");
+
+    // ボタン表示初期化
+    if (matchesOpenCreateBtn) matchesOpenCreateBtn.style.display = "none";
     return;
   }
 
