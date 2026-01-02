@@ -143,18 +143,24 @@
     </p>
 
     <div class="admin-form">
+      <!-- ★並び順を 2枚目イメージに合わせて変更：A(名→メール) vs B(名→メール) -->
       <div class="row">
-        <input type="text" id="team-a-name" placeholder="チーム名A（表示用）" style="min-width:220px;" />
-        <div class="vs">vs</div>
-        <input type="text" id="team-b-name" placeholder="チーム名B（表示用）" style="min-width:220px;" />
+        <div style="flex:1; min-width:260px;">
+          <input type="text" id="team-a-name" placeholder="チーム名A（表示用）" style="width:100%;" />
+          <div style="height:10px;"></div>
+          <input type="email" id="team-a-email" placeholder="チームA代表者メール" style="width:100%;" />
+        </div>
+
+        <div class="vs" style="align-self:center;">vs</div>
+
+        <div style="flex:1; min-width:260px;">
+          <input type="text" id="team-b-name" placeholder="チーム名B（表示用）" style="width:100%;" />
+          <div style="height:10px;"></div>
+          <input type="email" id="team-b-email" placeholder="チームB代表者メール" style="width:100%;" />
+        </div>
       </div>
 
-      <div class="row">
-        <input type="email" id="team-a-email" placeholder="チームA代表者メール" style="min-width:260px;" />
-        <input type="email" id="team-b-email" placeholder="チームB代表者メール" style="min-width:260px;" />
-      </div>
-
-      <div class="row">
+      <div class="row" style="margin-top:10px;">
         <select id="admin-tournament-select" class="select" style="min-width:260px;">
           <option value="">大会種別（選択）</option>
         </select>
@@ -177,13 +183,6 @@
 
     <div id="matches-admin-block" style="display:none;">
       <h3 class="subhead">管理者：全試合</h3>
-
-      <!-- ★追加：戻る / 試合作成 -->
-      <div class="row" style="margin: 6px 0 10px;">
-        <button id="admin-matches-back-btn" class="btn ghost">← 戻る</button>
-        <button id="admin-open-create-match-btn" class="btn">試合作成</button>
-      </div>
-
       <ul id="admin-matches-list" class="list"></ul>
       <hr class="sep" />
     </div>
@@ -300,6 +299,7 @@
         </select>
       </div>
 
+      <!-- 得点入力ボタン：得点時刻（中央）列の下へ -->
       <div class="center-actions">
         <button id="record-goal-btn" class="btn">得点</button>
         <button id="record-callahan-btn" class="btn ghost">キャラハン</button>
