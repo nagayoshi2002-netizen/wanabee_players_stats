@@ -125,15 +125,14 @@
         </select>
         <button id="registry-open-match-btn" class="btn ghost">この試合を開く</button>
       </div>
-      <p class="hint" style="margin-top:6px;">※公開/招待状況により、表示される試合は「自チーム参加分」のみです。</p>
     </div>
 
     <hr class="sep" />
 
     <h3 class="subhead">一括追加（背番号,名前）</h3>
     <textarea id="registry-bulk" rows="6" style="width:100%;" placeholder="例：
-12,山田太郎
-7,佐藤花子
+8,山田太郎
+32,佐藤花子
 "></textarea>
     <div class="row">
       <button id="registry-bulk-add-btn" class="btn">一括追加</button>
@@ -170,17 +169,17 @@
 
     <div class="row" style="align-items:flex-end;">
       <div style="flex:1; min-width:260px;">
-        <input type="text" id="team-a-name" placeholder="チーム名A（表示用）" />
+        <input type="text" id="team-a-name" placeholder="チームA名（表示用）" />
         <div style="height:10px;"></div>
-        <input type="email" id="team-a-email" placeholder="チームA代表者メール" />
+        <input type="email" id="team-a-email" placeholder="チームAメール" />
       </div>
 
       <div class="vs" style="align-self:center;">vs</div>
 
       <div style="flex:1; min-width:260px;">
-        <input type="text" id="team-b-name" placeholder="チーム名B（表示用）" />
+        <input type="text" id="team-b-name" placeholder="チームB名（表示用）" />
         <div style="height:10px;"></div>
-        <input type="email" id="team-b-email" placeholder="チームB代表者メール" />
+        <input type="email" id="team-b-email" placeholder="チームBメール" />
       </div>
     </div>
 
@@ -240,8 +239,7 @@
       <hr class="sep" />
     </div>
 
-    <h3 class="subhead">参加可能な試合</h3>
-    <p class="hint">未公開の試合は代表者には表示されません（管理者は常に閲覧可能）。</p>
+    <h3 class="subhead">試合一覧</h3>
     <ul id="matches-list" class="list"></ul>
   </section>
 
@@ -335,3 +333,4 @@
   <script type="module" src="app.js"></script>
 </body>
 </html>
+
