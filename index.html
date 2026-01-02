@@ -1,4 +1,4 @@
-<!-- index.html（全文置換：管理者：試合作成フォームの入力順を「A(名前→メール) → vs → B(名前→メール)」へ） -->
+<!-- index.html（全文置換） -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -137,33 +137,34 @@
   <section id="admin-section" class="card" style="display:none;">
     <h2 class="section-title">管理者：試合作成</h2>
 
+    <div class="row">
+      <button id="admin-back-to-matches-btn" class="btn ghost">← 試合一覧に戻る</button>
+    </div>
+
     <p class="hint">
       「チーム名×2」「代表者メール×2」「大会種別（選択 or 新規作成）」を入力すると、
       試合作成＋招待（invites）を自動作成します。
     </p>
 
     <div class="admin-form">
+      <!-- A(名→メール) vs B(名→メール) -->
+      <div class="row" style="align-items:flex-end;">
+        <div style="flex:1; min-width:260px;">
+          <input type="text" id="team-a-name" placeholder="チーム名A（表示用）" />
+          <div style="height:10px;"></div>
+          <input type="email" id="team-a-email" placeholder="チームA代表者メール" />
+        </div>
 
-      <!-- ★並び替え：A(名前→メール) → vs → B(名前→メール) -->
-      <div class="row">
-        <input type="text" id="team-a-name" placeholder="チーム名A（表示用）" style="min-width:220px;" />
-      </div>
-      <div class="row">
-        <input type="email" id="team-a-email" placeholder="チームA代表者メール" style="min-width:260px;" />
-      </div>
+        <div class="vs" style="align-self:center;">vs</div>
 
-      <div class="row" style="justify-content:center; padding: 4px 0;">
-        <div class="vs">vs</div>
-      </div>
-
-      <div class="row">
-        <input type="text" id="team-b-name" placeholder="チーム名B（表示用）" style="min-width:220px;" />
-      </div>
-      <div class="row">
-        <input type="email" id="team-b-email" placeholder="チームB代表者メール" style="min-width:260px;" />
+        <div style="flex:1; min-width:260px;">
+          <input type="text" id="team-b-name" placeholder="チーム名B（表示用）" />
+          <div style="height:10px;"></div>
+          <input type="email" id="team-b-email" placeholder="チームB代表者メール" />
+        </div>
       </div>
 
-      <div class="row">
+      <div class="row" style="margin-top:10px;">
         <select id="admin-tournament-select" class="select" style="min-width:260px;">
           <option value="">大会種別（選択）</option>
         </select>
@@ -183,6 +184,14 @@
   <!-- 試合一覧 -->
   <section id="matches-section" class="card" style="display:none;">
     <h2 class="section-title">試合一覧</h2>
+
+    <!-- 追加：戻るボタン（全員） -->
+    <div class="row" style="margin-bottom:10px;">
+      <button id="matches-back-to-home-btn" class="btn ghost">← 戻る</button>
+
+      <!-- 追加：試合作成（管理者のみ表示：JSで制御） -->
+      <button id="matches-open-create-btn" class="btn" style="display:none;">試合作成</button>
+    </div>
 
     <div id="matches-admin-block" style="display:none;">
       <h3 class="subhead">管理者：全試合</h3>
@@ -302,7 +311,6 @@
         </select>
       </div>
 
-      <!-- 得点入力ボタン：得点時刻（中央）列の下へ -->
       <div class="center-actions">
         <button id="record-goal-btn" class="btn">得点</button>
         <button id="record-callahan-btn" class="btn ghost">キャラハン</button>
