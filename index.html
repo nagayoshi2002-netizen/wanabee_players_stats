@@ -49,10 +49,10 @@
   <section id="uid-verify-section" class="card" style="display:none;">
     <h2>UID確認</h2>
     <p class="hint">
-      表示中のUIDを、入力欄に正確に入力してください（大文字小文字を区別します）。
+      以下のUIDを、入力欄に正確に入力してください（大文字小文字区別）。
     </p>
 
-    <div class="hint">表示中のUID</div>
+    <div class="hint">UID:</div>
     <div id="uid-display" style="font-weight:800; font-size: 18px; margin: 6px 0 10px;"></div>
 
     <input id="uid-input" type="text" placeholder="ここにUIDを入力" style="width:100%; max-width:680px;" />
@@ -67,29 +67,29 @@
   </section>
 
   <section id="rep-home-section" class="card" style="display:none;">
-    <h2 class="section-title">代表者メニュー</h2>
+    <h2 class="section-title">チームメニュー</h2>
     <div class="row">
-      <button id="open-player-registry-btn" class="btn">選手登録（大会マスタ）</button>
-      <button id="open-matches-btn" class="btn ghost">参加試合一覧</button>
+      <button id="open-player-registry-btn" class="btn">選手登録</button>
+      <button id="open-matches-btn" class="btn ghost">試合一覧</button>
     </div>
 
     <p class="hint" style="margin-top:10px;">
-      「選手登録（大会マスタ）」は大会単位で名簿を作成します。
+      試合参加前に選手登録を行なってください。
     </p>
   </section>
 
   <section id="player-registry-section" class="card" style="display:none;">
-    <h2 class="section-title">代表者：選手登録（大会マスタ）</h2>
+    <h2 class="section-title">選手登録</h2>
 
     <div class="row">
       <button id="back-to-home-btn" class="btn ghost">← メニューに戻る</button>
-      <button id="go-to-matches-btn" class="btn ghost">参加試合一覧へ</button>
+      <button id="go-to-matches-btn" class="btn ghost">試合一覧へ</button>
     </div>
 
     <hr class="sep" />
 
-    <h3 class="subhead">大会ID（tournamentId）を選択</h3>
-    <p class="hint">大会は全体共通の一覧から選びます（管理者が作成/登録）。</p>
+    <h3 class="subhead">大会名を選択</h3>
+    <p class="hint">選手を登録する大会を選んでください。</p>
 
     <div class="row">
       <select id="registry-tournament-select" class="select" style="min-width:260px;">
@@ -101,13 +101,6 @@
 
     <hr class="sep" />
 
-    <h3 class="subhead">個別追加</h3>
-    <div class="row">
-      <input type="text" id="registry-player-number" placeholder="背番号（例：12）" />
-      <input type="text" id="registry-player-name" placeholder="選手名（例：山田 太郎）" style="min-width:240px;" />
-      <button id="registry-add-player-btn" class="btn">追加</button>
-    </div>
-
     <h3 class="subhead">一括追加（背番号,名前）</h3>
     <textarea id="registry-bulk" rows="6" style="width:100%;" placeholder="例：
 12,山田太郎
@@ -118,6 +111,13 @@
     </div>
 
     <hr class="sep" />
+    
+    <h3 class="subhead">個別追加（追加登録時）</h3>
+    <div class="row">
+      <input type="text" id="registry-player-number" placeholder="背番号（例：12）" />
+      <input type="text" id="registry-player-name" placeholder="選手名（例：山田 太郎）" style="min-width:240px;" />
+      <button id="registry-add-player-btn" class="btn">追加</button>
+    </div>
 
     <h3 class="subhead">登録済み（編集・削除）</h3>
     <div class="row">
@@ -129,15 +129,14 @@
   </section>
 
   <section id="admin-section" class="card" style="display:none;">
-    <h2 class="section-title">管理者：試合作成</h2>
+    <h2 class="section-title">試合作成</h2>
 
     <div class="row">
       <button id="admin-back-to-matches-btn" class="btn ghost">← 試合一覧に戻る</button>
     </div>
 
     <p class="hint">
-      「チーム名×2」「代表者メール×2」「大会種別（選択 or 新規作成）」を入力すると、
-      試合作成＋招待（invites）を自動作成します。
+      「チーム名」「代表者メール」「大会種別（選択 or 新規作成）」を入力すると、試合が作成されます。
     </p>
 
     <div class="row" style="align-items:flex-end;">
@@ -161,12 +160,12 @@
         <option value="">大会種別（選択）</option>
       </select>
 
-      <input type="text" id="admin-new-tournament-id" placeholder="新規作成（tournamentId）" style="min-width:240px;" />
+      <input type="text" id="admin-new-tournament-id" placeholder="新規作成（英数字小文字）" style="min-width:240px;" />
       <button id="create-match-btn" class="btn">作成</button>
     </div>
 
     <p class="hint">
-      tournamentId は <b>小文字化</b> して保存/参照します（例：2025spring）。
+      大会種別を新規作成する場合は <b>英数字小文字</b> で作成してください（例：2020tokyo）。
     </p>
 
     <p id="admin-info" class="hint"></p>
@@ -183,27 +182,27 @@
     <!-- 管理者ブロック -->
     <div id="matches-admin-block" style="display:none;">
       <div class="row" style="justify-content:space-between; align-items:center;">
-        <h3 class="subhead" style="margin:0;">管理者：全試合</h3>
+        <h3 class="subhead" style="margin:0;">全試合（管理者メニュー）</h3>
 
         <!-- ★追加：管理者招待リンク作成 -->
-        <button id="admin-invite-btn" class="btn ghost">管理者招待リンクを作成</button>
+        <button id="admin-invite-btn" class="btn ghost">管理者招待用リンクを作成</button>
       </div>
 
       <!-- ★追加：生成された招待リンク表示 -->
       <div id="admin-invite-box" style="display:none; margin-top:10px;">
-        <div class="hint">発行された招待リンク（1回限り）</div>
+        <div class="hint">招待リンク（1回限り）</div>
         <div class="row">
           <input id="admin-invite-url" type="text" readonly />
           <button id="admin-invite-copy-btn" class="btn">コピー</button>
         </div>
-        <p class="hint" style="margin-top:6px;">このリンクを開くと、ログイン済みユーザーが即Admin化されます。</p>
+        <p class="hint" style="margin-top:6px;">このリンクは、<b>新規登録済みユーザー</b>にのみ有効です。</p>
       </div>
 
       <ul id="admin-matches-list" class="list"></ul>
       <hr class="sep" />
     </div>
 
-    <h3 class="subhead">代表者：招待された試合</h3>
+    <h3 class="subhead">参加可能な試合</h3>
     <ul id="matches-list" class="list"></ul>
   </section>
 
@@ -275,13 +274,13 @@
 
     <div class="row">
       <button id="back-to-matches-btn" class="btn ghost">← 試合一覧に戻る</button>
-      <button id="open-team-admin-btn" class="btn ghost">選手管理を開く</button>
+      <button id="open-team-admin-btn" class="btn ghost">選手情報を編集する</button>
     </div>
 
     <div class="row" style="margin-top:10px;">
       <button id="start-timer-btn" class="btn">タイマー開始</button>
-      <button id="reset-timer-btn" class="btn ghost">リセット</button>
       <button id="stop-timer-btn" class="btn ghost">一時停止</button>
+      <button id="reset-timer-btn" class="btn ghost">リセット</button>
       <span id="timer-share-status" class="hint" style="margin-left:8px;"></span>
     </div>
 
@@ -304,7 +303,7 @@
     <div class="controls">
       <div class="row">
         <select id="player-select" class="select">
-          <option value="">選手を選択</option>
+          <option value="">得点した選手を選択</option>
         </select>
 
         <select id="assist-select" class="select">
@@ -326,3 +325,4 @@
   <script type="module" src="app.js"></script>
 </body>
 </html>
+
