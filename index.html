@@ -1,3 +1,4 @@
+<!-- index.html（全文置換：admin enroll UI追加 + 管理者試合一覧フィルタ(大会プルダウン)追加 + 選手登録の試合プルダウン表示枠追加） -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -65,28 +66,27 @@
     </div>
   </section>
 
-  <!-- ★追加：管理者登録（招待リンク） -->
+  <!-- ★管理者招待リンクからの登録（admin_token付きURLでログインしたとき表示） -->
   <section id="admin-enroll-section" class="card" style="display:none;">
     <h2 class="section-title">管理者登録</h2>
-    <p class="hint">招待リンクからアクセスしています。下のボタンで管理者登録を完了してください。</p>
+    <p class="hint">この画面は、管理者招待リンク（admin_token）からアクセスした場合のみ表示されます。</p>
 
-    <div class="hint">招待トークン:</div>
-    <div id="admin-enroll-status" style="font-weight:800; font-size: 16px; margin: 6px 0 10px;"></div>
+    <p id="admin-enroll-status" class="hint"></p>
 
-    <div class="row">
-      <button id="admin-enroll-btn" class="btn">管理者として登録</button>
+    <div class="row" style="margin-top:10px;">
+      <button id="admin-enroll-btn" class="btn">管理者として登録する</button>
       <button id="admin-enroll-cancel-btn" class="btn ghost">キャンセル</button>
     </div>
 
     <p class="hint" style="margin-top:10px;">
-      ※このリンクは原則「1回限り」です。登録後はURLからトークンが消えます。
+      ※このリンクは<b>1回限り</b>で、使用後は無効になります。
     </p>
   </section>
 
   <section id="rep-home-section" class="card" style="display:none;">
     <h2 class="section-title">チームメニュー</h2>
     <div class="row">
-      <button id="open-player-registry-btn" class="btn">選手登録（大会マスタ）</button>
+      <button id="open-player-registry-btn" class="btn">選手登録</button>
       <button id="open-matches-btn" class="btn ghost">試合一覧</button>
     </div>
 
@@ -96,7 +96,7 @@
   </section>
 
   <section id="player-registry-section" class="card" style="display:none;">
-    <h2 class="section-title">選手登録（大会マスタ）</h2>
+    <h2 class="section-title">選手登録</h2>
 
     <div class="row">
       <button id="back-to-home-btn" class="btn ghost">← メニューに戻る</button>
@@ -116,23 +116,23 @@
     </div>
     <p id="registry-context" class="hint"></p>
 
-    <!-- ★追加：大会に含まれる試合（確認用プルダウン） -->
-    <div id="registry-matches-box" style="display:none; margin-top:10px;">
-      <div class="hint">（確認用）この大会に含まれる試合</div>
+    <!-- ★確認用：この大会で自分が参加している試合（自動反映先） -->
+    <div id="registry-matches-box" style="display:none; margin-top:12px;">
+      <div class="hint">この大会で参加している試合（自動反映先）</div>
       <div class="row">
         <select id="registry-match-select" class="select" style="min-width:320px;">
           <option value="">（確認用）試合を選択</option>
         </select>
-        <button id="registry-open-match-btn" class="btn ghost">この試合を開く</button>
       </div>
+      <p class="hint" style="margin-top:6px;">※選手登録時、ここに含まれる試合へ自動で反映されます。</p>
     </div>
 
     <hr class="sep" />
 
     <h3 class="subhead">一括追加（背番号,名前）</h3>
     <textarea id="registry-bulk" rows="6" style="width:100%;" placeholder="例：
-8,山田太郎
-32,佐藤花子
+12,山田太郎
+7,佐藤花子
 "></textarea>
     <div class="row">
       <button id="registry-bulk-add-btn" class="btn">一括追加</button>
@@ -157,7 +157,7 @@
   </section>
 
   <section id="admin-section" class="card" style="display:none;">
-    <h2 class="section-title">試合作成（管理者）</h2>
+    <h2 class="section-title">試合作成</h2>
 
     <div class="row">
       <button id="admin-back-to-matches-btn" class="btn ghost">← 試合一覧に戻る</button>
@@ -169,17 +169,17 @@
 
     <div class="row" style="align-items:flex-end;">
       <div style="flex:1; min-width:260px;">
-        <input type="text" id="team-a-name" placeholder="チームA名（表示用）" />
+        <input type="text" id="team-a-name" placeholder="チーム名A（表示用）" />
         <div style="height:10px;"></div>
-        <input type="email" id="team-a-email" placeholder="チームAメール" />
+        <input type="email" id="team-a-email" placeholder="チームA代表者メール" />
       </div>
 
       <div class="vs" style="align-self:center;">vs</div>
 
       <div style="flex:1; min-width:260px;">
-        <input type="text" id="team-b-name" placeholder="チームB名（表示用）" />
+        <input type="text" id="team-b-name" placeholder="チーム名B（表示用）" />
         <div style="height:10px;"></div>
-        <input type="email" id="team-b-email" placeholder="チームBメール" />
+        <input type="email" id="team-b-email" placeholder="チームB代表者メール" />
       </div>
     </div>
 
@@ -204,28 +204,29 @@
 
     <div class="row" style="margin-bottom:10px;">
       <button id="matches-back-to-home-btn" class="btn ghost">← 戻る</button>
-      <button id="matches-open-registry-btn" class="btn ghost">大会マスタへ</button>
       <button id="matches-open-create-btn" class="btn" style="display:none;">試合作成</button>
     </div>
 
     <!-- 管理者ブロック -->
     <div id="matches-admin-block" style="display:none;">
       <div class="row" style="justify-content:space-between; align-items:flex-end;">
-        <div style="flex:1;">
-          <h3 class="subhead" style="margin:0;">全試合（管理者）</h3>
-          <div class="hint" style="margin-top:6px;">大会で絞り込みできます。</div>
-          <div class="row" style="margin-top:6px;">
-            <select id="admin-matches-tournament-filter" class="select" style="min-width:260px;">
-              <option value="">すべて</option>
-            </select>
-          </div>
+        <div>
+          <h3 class="subhead" style="margin:0;">全試合（管理者メニュー）</h3>
+          <p class="hint" style="margin:6px 0 0;">大会で絞り込みできます（未選択＝すべて）。</p>
         </div>
 
-        <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+        <div class="row" style="justify-content:flex-end;">
+          <!-- ★大会フィルタ -->
+          <select id="admin-matches-tournament-filter" class="select" style="min-width:260px;">
+            <option value="">すべて</option>
+          </select>
+
+          <!-- ★管理者招待リンク作成 -->
           <button id="admin-invite-btn" class="btn ghost">管理者招待用リンクを作成</button>
         </div>
       </div>
 
+      <!-- ★生成された招待リンク表示 -->
       <div id="admin-invite-box" style="display:none; margin-top:10px;">
         <div class="hint">招待リンク（1回限り）</div>
         <div class="row">
@@ -239,7 +240,7 @@
       <hr class="sep" />
     </div>
 
-    <h3 class="subhead">試合一覧</h3>
+    <h3 class="subhead">参加可能な試合</h3>
     <ul id="matches-list" class="list"></ul>
   </section>
 
@@ -333,4 +334,3 @@
   <script type="module" src="app.js"></script>
 </body>
 </html>
-
